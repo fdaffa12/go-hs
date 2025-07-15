@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { authService } from "../services/api";
+import { authService, userService } from "../services/api";
 
 export const useAuthStore = defineStore("auth", () => {
   // State
@@ -85,7 +85,10 @@ export const useAuthStore = defineStore("auth", () => {
 
   const updateProfile = async (userData) => {
     try {
-      const response = await authService.updateProfile(userData);
+      const response = await userService.updateUserProfile(
+        user.value.nik,
+        userData
+      );
 
       if (response.success) {
         user.value = {

@@ -49,7 +49,7 @@ const getProfileImageUrl = (profilePicture) => {
 
 const openEditModal = () => {
   // Pre-fill form with current user data
-  editForm.username = authStore.user?.username || "";
+  editForm.name = authStore.user?.name || "";
   editForm.email = authStore.user?.email || "";
   showEditModal.value = true;
 };
@@ -57,7 +57,7 @@ const openEditModal = () => {
 const closeEditModal = () => {
   showEditModal.value = false;
   // Reset form
-  editForm.username = "";
+  editForm.name = "";
   editForm.email = "";
   editForm.profileImage = null;
   profileImagePreview.value = null;
@@ -92,6 +92,53 @@ const handleImageUpload = (event) => {
   reader.readAsDataURL(file);
 };
 
+const updateProfile = async () => {
+  try {
+    loading.value = true;
+    loadingMessage.value = "Memperbarui profile...";
+
+    // Validate form
+    if (!editForm.name.trim() || !editForm.email.trim()) {
+      toast.error("Nama dan email harus diisi");
+      return;
+    }
+
+    // Always use FormData
+    const formData = new FormData();
+    formData.append("name", editForm.name.trim());
+    formData.append("email", editForm.email.trim());
+
+    if (editForm.profileImage) {
+      formData.append("profile_picture", editForm.profileImage);
+    }
+
+    const response = await userService.updateUserProfile(
+      authStore.user.nik,
+      formData
+    );
+
+    if (response.success) {
+      // Update auth store with new user data
+      await authStore.updateProfile({
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        profile_picture: response.data.profile_picture,
+      });
+
+      toast.success("Profile berhasil diperbarui");
+      closeEditModal();
+    } else {
+      toast.error(response.message || "Gagal memperbarui profile");
+    }
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    toast.error("Terjadi kesalahan saat memperbarui profile");
+  } finally {
+    loading.value = false;
+    loadingMessage.value = "";
+  }
+};
+
 const removeProfileImage = async () => {
   try {
     // If user has an existing profile picture, delete it from server
@@ -99,15 +146,23 @@ const removeProfileImage = async () => {
       loading.value = true;
       loadingMessage.value = "Menghapus foto profil...";
 
-      const response = await userService.updateProfile(authStore.user.id, {
-        username: authStore.user.username,
-        email: authStore.user.email,
-        remove_profile_picture: true,
-      });
+      const formData = new FormData();
+      formData.append("name", authStore.user.name);
+      formData.append("email", authStore.user.email);
+      formData.append("remove_profile_picture", "true");
+
+      const response = await userService.updateUserProfile(
+        authStore.user.nik,
+        formData
+      );
 
       if (response.success) {
         // Update auth store with new user data
-        await authStore.fetchUser();
+        await authStore.updateProfile({
+          name: authStore.user.name,
+          email: authStore.user.email,
+          profile_picture: null,
+        });
         toast.success("Foto profil berhasil dihapus");
       } else {
         toast.error(response.message || "Gagal menghapus foto profil");
@@ -127,56 +182,6 @@ const removeProfileImage = async () => {
   } catch (error) {
     console.error("Error removing profile image:", error);
     toast.error("Terjadi kesalahan saat menghapus foto profil");
-  } finally {
-    loading.value = false;
-    loadingMessage.value = "";
-  }
-};
-
-const updateProfile = async () => {
-  try {
-    loading.value = true;
-    loadingMessage.value = "Memperbarui profile...";
-
-    // Validate form
-    if (!editForm.username.trim() || !editForm.email.trim()) {
-      toast.error("Username dan email harus diisi");
-      return;
-    }
-
-    // Prepare data for API call
-    let response;
-
-    if (editForm.profileImage) {
-      // If there's a profile image, use FormData
-      const formData = new FormData();
-      formData.append("username", editForm.username.trim());
-      formData.append("email", editForm.email.trim());
-      formData.append("profile_picture", editForm.profileImage);
-
-      response = await userService.updateProfile(authStore.user.id, formData);
-    } else {
-      // Regular update without image
-      const updateData = {
-        username: editForm.username.trim(),
-        email: editForm.email.trim(),
-      };
-
-      response = await userService.updateProfile(authStore.user.id, updateData);
-    }
-
-    if (response.success) {
-      // Update auth store with new user data
-      await authStore.fetchUser();
-
-      toast.success("Profile berhasil diperbarui");
-      closeEditModal();
-    } else {
-      toast.error(response.message || "Gagal memperbarui profile");
-    }
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    toast.error("Terjadi kesalahan saat memperbarui profile");
   } finally {
     loading.value = false;
     loadingMessage.value = "";
@@ -225,7 +230,7 @@ const changePassword = async () => {
     }
 
     // Call API to change password
-    const response = await userService.changePassword(authStore.user.id, {
+    const response = await userService.changePassword(authStore.user.nik, {
       currentPassword: passwordForm.currentPassword,
       newPassword: passwordForm.newPassword,
     });
@@ -404,11 +409,11 @@ const changePassword = async () => {
                 </svg>
               </div>
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-600">Username</p>
+                <p class="text-sm font-medium text-gray-600">Nama</p>
                 <p
                   class="text-base sm:text-lg font-semibold text-gray-900 truncate"
                 >
-                  {{ authStore.user?.username || "N/A" }}
+                  {{ authStore.user?.name || "N/A" }}
                 </p>
               </div>
             </div>
@@ -464,7 +469,7 @@ const changePassword = async () => {
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-gray-600">User ID</p>
                 <p class="text-base sm:text-lg font-semibold text-gray-900">
-                  #{{ authStore.user?.id || "N/A" }}
+                  #{{ authStore.user?.nik || "N/A" }}
                 </p>
               </div>
             </div>
@@ -634,10 +639,10 @@ const changePassword = async () => {
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                  Username
+                  Nama
                 </label>
                 <input
-                  v-model="editForm.username"
+                  v-model="editForm.name"
                   type="text"
                   required
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
