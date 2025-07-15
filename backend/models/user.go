@@ -126,13 +126,46 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 
 // Update updates user information
 func (m *UserModel) Update(nik string, user *UserRequest) (*User, error) {
-	query := `UPDATE hs_wsb_user SET NAME = ?, EMAIL = ?, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
-	_, err := m.DB.Exec(query, user.Name, user.Email, nik)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update user: %v", err)
-	}
+    // First check if email exists for another user
+    if user.Email != "" {
+        existingUser, err := m.GetByEmail(user.Email)
+        if err == nil && existingUser != nil && existingUser.NIK != nik {
+            return nil, fmt.Errorf("email already registered")
+        }
+    }
 
-	return m.GetByNIK(nik)
+    var query string
+    var args []interface{}
+
+    if user.Password != "" {
+        // Hash new password if provided
+        hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+        if err != nil {
+            return nil, fmt.Errorf("failed to hash password: %v", err)
+        }
+        query = `UPDATE hs_wsb_user SET NAME = ?, EMAIL = ?, PASSWORD = ?, LEVEL = ?, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
+        args = []interface{}{user.Name, user.Email, string(hashedPassword), user.Level, nik}
+    } else {
+        // Update without password
+        query = `UPDATE hs_wsb_user SET NAME = ?, EMAIL = ?, LEVEL = ?, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
+        args = []interface{}{user.Name, user.Email, user.Level, nik}
+    }
+
+    result, err := m.DB.Exec(query, args...)
+    if err != nil {
+        return nil, fmt.Errorf("failed to update user: %v", err)
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        return nil, fmt.Errorf("failed to get rows affected: %v", err)
+    }
+
+    if rowsAffected == 0 {
+        return nil, fmt.Errorf("no user was updated")
+    }
+
+    return m.GetByNIK(nik)
 }
 
 // UpdateWithProfilePicture updates user with profile picture

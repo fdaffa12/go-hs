@@ -184,7 +184,13 @@ export const userService = {
   // Create new user
   createUser: async (userData) => {
     try {
-      const response = await api.post("/users/create", userData);
+      const response = await api.post("/users/create", {
+        nik: userData.nik,
+        name: userData.name,
+        email: userData.email,
+        password: userData.password,
+        level: userData.level || 1,
+      });
       return response.data;
     } catch (error) {
       throw (
@@ -196,48 +202,35 @@ export const userService = {
   // Update user
   updateUser: async (nik, userData) => {
     try {
+      console.log("Sending update request for NIK:", nik);
+      console.log("Update data:", {
+        ...userData,
+        password: userData.password ? "[REDACTED]" : undefined,
+      });
+
       const response = await api.put(`/users/${nik}`, userData);
+      console.log("Update response:", response.data);
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || "Failed to update user");
+      }
+
       return response.data;
     } catch (error) {
-      throw (
-        error.response?.data || { success: false, message: "Network error" }
-      );
+      console.error("API Error in updateUser:", error);
+      if (error.response?.data) {
+        throw error.response.data;
+      }
+      throw { success: false, message: error.message || "Network error" };
     }
   },
 
-  // Update user with image
-  updateUserWithImage: async (nik, formData) => {
+  // Update user with profile picture
+  updateUserProfile: async (nik, formData) => {
     try {
       const response = await api.put(`/users/${nik}/profile`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
-        },
-      });
-      return response.data;
-    } catch (error) {
-      throw (
-        error.response?.data || { success: false, message: "Network error" }
-      );
-    }
-  },
-
-  // Update profile
-  updateProfile: async (nik, data) => {
-    try {
-      let requestData = data;
-      let contentType = "multipart/form-data";
-
-      // If data is not FormData, convert it to FormData
-      if (!(data instanceof FormData)) {
-        requestData = new FormData();
-        Object.keys(data).forEach((key) => {
-          requestData.append(key, data[key]);
-        });
-      }
-
-      const response = await api.put(`/users/${nik}/profile`, requestData, {
-        headers: {
-          "Content-Type": contentType,
         },
       });
       return response.data;

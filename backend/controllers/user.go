@@ -242,7 +242,7 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req UpdateUserRequest
+	var req models.UserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response := Response{
 			Success: false,
@@ -278,15 +278,17 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	// Update user
 	userReq := &models.UserRequest{
-		Name:  req.Name,
-		Email: req.Email,
+		Name:     req.Name,
+		Email:    req.Email,
+		Level:    req.Level,
+		Password: req.Password, // Will be handled by model if provided
 	}
 
 	updatedUser, err := uc.UserModel.Update(path, userReq)
 	if err != nil {
 		response := Response{
 			Success: false,
-			Message: "Failed to update user",
+			Message: fmt.Sprintf("Failed to update user: %v", err),
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(response)
