@@ -20,8 +20,8 @@ type Response struct {
 
 // JWTClaims represents JWT claims
 type JWTClaims struct {
-	UserID int    `json:"user_id"`
-	Email  string `json:"email"`
+	NIK   string `json:"nik"`
+	Email string `json:"email"`
 	jwt.RegisteredClaims
 }
 
@@ -35,10 +35,10 @@ func getJWTSecret() []byte {
 }
 
 // GenerateJWT generates JWT token for user
-func GenerateJWT(userID int, email string) (string, error) {
+func GenerateJWT(nik string, email string) (string, error) {
 	claims := &JWTClaims{
-		UserID: userID,
-		Email:  email,
+		NIK:   nik,
+		Email: email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -120,7 +120,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Add user info to request context
-		r.Header.Set("X-User-ID", fmt.Sprintf("%d", claims.UserID))
+		r.Header.Set("X-User-NIK", claims.NIK)
 		r.Header.Set("X-User-Email", claims.Email)
 
 		// Call next handler

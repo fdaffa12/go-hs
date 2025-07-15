@@ -1,20 +1,69 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { authService } from "../services/api";
 
 // Initialize router and auth store
 const router = useRouter();
 const authStore = useAuthStore();
 
+// Add employees data
+const employees = ref([]);
+const loading = ref(false);
+const loadingEmployees = ref(false);
+
 const form = ref({
-  username: "",
+  nik: "",
+  name: "",
   email: "",
   password: "",
   confirmPassword: "",
+  level: 1,
 });
 
-const loading = ref(false);
+// Load employees on component mount
+const loadEmployees = async () => {
+  try {
+    loadingEmployees.value = true;
+    console.log("Fetching employees...");
+    const response = await authService.getAvailableEmployees();
+    console.log("API Response:", response);
+    if (response.success) {
+      employees.value = response.data;
+      console.log("Loaded employees:", employees.value);
+    } else {
+      console.error("Failed to load employees:", response.message);
+      error.value = "Gagal memuat data karyawan: " + response.message;
+    }
+  } catch (err) {
+    console.error("Error loading employees:", err);
+    error.value =
+      "Gagal memuat data karyawan: " + (err.message || "Unknown error");
+  } finally {
+    loadingEmployees.value = false;
+  }
+};
+
+// Handle employee selection
+const handleEmployeeSelect = (event) => {
+  const selectedNIK = event.target.value;
+  console.log("Selected NIK:", selectedNIK);
+  const selectedEmployee = employees.value.find(
+    (emp) => emp.nik === selectedNIK
+  );
+  console.log("Selected employee:", selectedEmployee);
+  if (selectedEmployee) {
+    form.value.nik = selectedEmployee.nik;
+    form.value.name = selectedEmployee.name;
+    validateNIK();
+  }
+};
+
+onMounted(() => {
+  loadEmployees();
+});
+
 const error = ref("");
 const success = ref("");
 const showPassword = ref(false);
@@ -22,7 +71,8 @@ const showConfirmPassword = ref(false);
 const acceptTerms = ref(false);
 
 // Validation errors
-const usernameError = ref("");
+const nikError = ref("");
+const nameError = ref("");
 const emailError = ref("");
 const passwordError = ref("");
 const confirmPasswordError = ref("");
@@ -30,11 +80,13 @@ const confirmPasswordError = ref("");
 // Computed properties
 const isFormValid = computed(() => {
   return (
-    form.value.username &&
+    form.value.nik &&
+    form.value.name &&
     form.value.email &&
     form.value.password &&
     form.value.confirmPassword &&
-    !usernameError.value &&
+    !nikError.value &&
+    !nameError.value &&
     !emailError.value &&
     !passwordError.value &&
     !confirmPasswordError.value &&
@@ -91,30 +143,34 @@ const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-const validateUsername = () => {
-  const username = form.value.username.trim();
-  if (!username) {
-    usernameError.value = "Nama pengguna wajib diisi";
-  } else if (username.length < 3) {
-    usernameError.value = "Nama pengguna minimal 3 karakter";
-  } else if (username.length > 20) {
-    usernameError.value = "Nama pengguna maksimal 20 karakter";
-  } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    usernameError.value =
-      "Nama pengguna hanya boleh mengandung huruf, angka, dan underscore";
+const validateNIK = () => {
+  const nik = form.value.nik.trim();
+  if (!nik) {
+    nikError.value = "NIK wajib diisi";
+  } else if (!nik.startsWith("HS")) {
+    nikError.value = "NIK harus diawali dengan 'HS'";
+  } else if (nik.length < 3) {
+    nikError.value = "NIK minimal 3 karakter";
+  } else if (nik.length > 10) {
+    // Changed from 7 to 10 to match employee table
+    nikError.value = "NIK maksimal 10 karakter";
+  } else if (!/^HS\d+$/.test(nik)) {
+    nikError.value = "NIK harus berformat HS diikuti angka";
   } else {
-    usernameError.value = "";
+    nikError.value = "";
   }
 };
 
-const validateEmail = () => {
-  const email = form.value.email.trim();
-  if (!email) {
-    emailError.value = "Email wajib diisi";
-  } else if (!isValidEmail(email)) {
-    emailError.value = "Format email tidak valid";
+const validateName = () => {
+  const name = form.value.name.trim();
+  if (!name) {
+    nameError.value = "Nama wajib diisi";
+  } else if (name.length < 3) {
+    nameError.value = "Nama minimal 3 karakter";
+  } else if (name.length > 25) {
+    nameError.value = "Nama maksimal 25 karakter";
   } else {
-    emailError.value = "";
+    nameError.value = "";
   }
 };
 
@@ -147,6 +203,19 @@ const validateConfirmPassword = () => {
   }
 };
 
+const validateEmail = () => {
+  const email = form.value.email.trim();
+  if (!email) {
+    emailError.value = "Email wajib diisi";
+  } else if (!isValidEmail(email)) {
+    emailError.value = "Format email tidak valid";
+  } else if (email.length > 25) {
+    emailError.value = "Email maksimal 25 karakter";
+  } else {
+    emailError.value = "";
+  }
+};
+
 const handleRegister = async () => {
   try {
     loading.value = true;
@@ -154,7 +223,8 @@ const handleRegister = async () => {
     success.value = "";
 
     // Final validation
-    validateUsername();
+    validateNIK();
+    validateName();
     validateEmail();
     validatePassword();
     validateConfirmPassword();
@@ -170,24 +240,29 @@ const handleRegister = async () => {
     }
 
     await authStore.register({
-      username: form.value.username.trim(),
+      nik: form.value.nik.trim(),
+      name: form.value.name.trim(),
       email: form.value.email.trim().toLowerCase(),
       password: form.value.password,
+      level: form.value.level,
     });
 
     success.value = "Registrasi berhasil! Selamat datang.";
 
     // Reset form
     form.value = {
-      username: "",
+      nik: "HS",
+      name: "",
       email: "",
       password: "",
       confirmPassword: "",
+      level: 1,
     };
     acceptTerms.value = false;
 
     // Clear validation errors
-    usernameError.value = "";
+    nikError.value = "";
+    nameError.value = "";
     emailError.value = "";
     passwordError.value = "";
     confirmPasswordError.value = "";
@@ -198,9 +273,11 @@ const handleRegister = async () => {
     }, 1000);
   } catch (err) {
     console.error("Registration error:", err);
-    if (err.message?.includes("username")) {
-      usernameError.value = "Nama pengguna sudah digunakan";
-    } else if (err.message?.includes("email")) {
+    if (err.message?.toLowerCase().includes("nik not found")) {
+      nikError.value = "NIK tidak terdaftar sebagai karyawan";
+    } else if (err.message?.toLowerCase().includes("nik already")) {
+      nikError.value = "NIK sudah terdaftar";
+    } else if (err.message?.toLowerCase().includes("email")) {
       emailError.value = "Email sudah terdaftar";
     } else {
       error.value = err.message || "Registrasi gagal";
@@ -246,13 +323,73 @@ const handleRegister = async () => {
       <!-- Register Form -->
       <div class="bg-white shadow-xl rounded-2xl p-8 border border-gray-100">
         <form @submit.prevent="handleRegister" class="space-y-6">
-          <!-- Username Field -->
+          <!-- NIK Field -->
           <div class="space-y-2">
-            <label
-              for="username"
-              class="block text-sm font-semibold text-gray-700"
+            <label for="nik" class="block text-sm font-semibold text-gray-700">
+              NIK
+            </label>
+            <div class="relative">
+              <div
+                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+              >
+                <svg
+                  class="h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+                  />
+                </svg>
+              </div>
+              <select
+                id="nik"
+                v-model="form.nik"
+                @change="handleEmployeeSelect"
+                :disabled="loadingEmployees"
+                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 disabled:bg-gray-50 disabled:text-gray-500"
+              >
+                <option value="">Pilih Karyawan</option>
+                <option
+                  v-for="employee in employees"
+                  :key="employee.nik"
+                  :value="employee.nik"
+                >
+                  {{ employee.nik }} - {{ employee.name }}
+                </option>
+              </select>
+            </div>
+            <p v-if="nikError" class="text-sm text-red-600">
+              {{ nikError }}
+            </p>
+            <p
+              v-else-if="form.nik && !nikError"
+              class="text-sm text-green-600 flex items-center"
             >
-              Nama Pengguna
+              <svg
+                class="h-4 w-4 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              Format NIK valid
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <label for="name" class="block text-sm font-semibold text-gray-700">
+              Nama Lengkap
             </label>
             <div class="relative">
               <div
@@ -273,26 +410,27 @@ const handleRegister = async () => {
                 </svg>
               </div>
               <input
-                id="username"
-                v-model="form.username"
+                id="name"
+                v-model="form.name"
                 type="text"
                 required
                 :disabled="loading"
-                placeholder="Masukkan nama pengguna"
+                maxlength="25"
+                placeholder="Masukkan nama lengkap"
                 class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 disabled:bg-gray-50 disabled:text-gray-500"
                 :class="{
                   'border-red-300 focus:ring-red-500 focus:border-red-500':
-                    usernameError,
+                    nameError,
                 }"
-                @blur="validateUsername"
-                @input="validateUsername"
+                @blur="validateName"
+                @input="validateName"
               />
             </div>
-            <p v-if="usernameError" class="text-sm text-red-600">
-              {{ usernameError }}
+            <p v-if="nameError" class="text-sm text-red-600">
+              {{ nameError }}
             </p>
             <p
-              v-else-if="form.username && !usernameError"
+              v-else-if="form.name && !nameError"
               class="text-sm text-green-600 flex items-center"
             >
               <svg
@@ -308,7 +446,7 @@ const handleRegister = async () => {
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              Nama pengguna tersedia
+              Format nama valid
             </p>
           </div>
 

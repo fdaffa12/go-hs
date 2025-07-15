@@ -33,6 +33,7 @@ func (router *Router) SetupRoutes() *http.ServeMux {
 	// Public routes (no authentication required)
 	mux.HandleFunc("/api/register", middleware.CORSMiddleware(middleware.LoggingMiddleware(router.AuthController.Register)))
 	mux.HandleFunc("/api/login", middleware.CORSMiddleware(middleware.LoggingMiddleware(router.AuthController.Login)))
+	mux.HandleFunc("/api/available-employees", middleware.CORSMiddleware(middleware.LoggingMiddleware(router.AuthController.GetAvailableEmployees)))
 
 	// Protected routes (authentication required)
 	mux.HandleFunc("/api/user", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.AuthController.GetCurrentUser))))
@@ -69,7 +70,7 @@ func (router *Router) handleUserRoutes(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"success": false, "message": "User ID is required"}`))
+		w.Write([]byte(`{"success": false, "message": "NIK is required"}`))
 		return
 	}
 
@@ -100,7 +101,7 @@ func (router *Router) handleUserRoutes(w http.ResponseWriter, r *http.Request) {
 	// Route based on HTTP method
 	switch r.Method {
 	case "GET":
-		router.UserController.GetUserByID(w, r)
+		router.UserController.GetUserByNIK(w, r)
 	case "PUT":
 		router.UserController.UpdateUser(w, r)
 	case "DELETE":

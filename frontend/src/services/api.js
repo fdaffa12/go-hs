@@ -58,16 +58,54 @@ api.interceptors.response.use(
 
 // Auth service functions
 export const authService = {
+  // Get available employees for registration
+  getAvailableEmployees: async () => {
+    try {
+      console.log("Calling /available-employees endpoint");
+      const response = await api.get("/available-employees");
+      console.log("Raw API response:", response);
+      if (response.data && response.data.success) {
+        console.log("Processed employees data:", response.data);
+        return response.data;
+      } else {
+        throw new Error(response.data?.message || "Failed to fetch employees");
+      }
+    } catch (error) {
+      console.error("API Error in getAvailableEmployees:", error);
+      throw (
+        error.response?.data || {
+          success: false,
+          message: error.message || "Network error",
+        }
+      );
+    }
+  },
+
   // Register user
   register: async (userData) => {
     try {
+      console.log("Sending registration request with data:", {
+        ...userData,
+        password: "[REDACTED]",
+      });
       const response = await api.post("/register", userData);
-      if (response.data.success && response.data.token) {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.data));
+      console.log("Registration response:", response.data);
+      if (response.data.success && response.data.data.token) {
+        localStorage.setItem("token", response.data.data.token);
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            nik: response.data.data.nik,
+            name: response.data.data.name,
+            email: response.data.data.email,
+            level: response.data.data.level,
+            profile_picture: response.data.data.profile_picture,
+          })
+        );
       }
       return response.data;
     } catch (error) {
+      console.error("Registration API error:", error.response?.data || error);
       throw (
         error.response?.data || { success: false, message: "Network error" }
       );
@@ -78,9 +116,18 @@ export const authService = {
   login: async (credentials) => {
     try {
       const response = await api.post("/login", credentials);
-      if (response.data.success && response.data.token) {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.user));
+      if (response.data.success && response.data.data.token) {
+        localStorage.setItem("token", response.data.data.token);
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            nik: response.data.data.nik,
+            name: response.data.data.name,
+            email: response.data.data.email,
+            level: response.data.data.level,
+            profile_picture: response.data.data.profile_picture,
+          })
+        );
       }
       return response.data;
     } catch (error) {
@@ -122,10 +169,10 @@ export const userService = {
     }
   },
 
-  // Get user by ID
-  getUserById: async (id) => {
+  // Get user by NIK
+  getUserByNIK: async (nik) => {
     try {
-      const response = await api.get(`/users/${id}`);
+      const response = await api.get(`/users/${nik}`);
       return response.data;
     } catch (error) {
       throw (
@@ -147,9 +194,9 @@ export const userService = {
   },
 
   // Update user
-  updateUser: async (id, userData) => {
+  updateUser: async (nik, userData) => {
     try {
-      const response = await api.put(`/users/${id}`, userData);
+      const response = await api.put(`/users/${nik}`, userData);
       return response.data;
     } catch (error) {
       throw (
@@ -159,9 +206,9 @@ export const userService = {
   },
 
   // Update user with image
-  updateUserWithImage: async (id, formData) => {
+  updateUserWithImage: async (nik, formData) => {
     try {
-      const response = await api.put(`/users/${id}/profile`, formData, {
+      const response = await api.put(`/users/${nik}/profile`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -175,7 +222,7 @@ export const userService = {
   },
 
   // Update profile
-  updateProfile: async (id, data) => {
+  updateProfile: async (nik, data) => {
     try {
       let requestData = data;
       let contentType = "multipart/form-data";
@@ -188,7 +235,7 @@ export const userService = {
         });
       }
 
-      const response = await api.put(`/users/${id}/profile`, requestData, {
+      const response = await api.put(`/users/${nik}/profile`, requestData, {
         headers: {
           "Content-Type": contentType,
         },
@@ -202,9 +249,9 @@ export const userService = {
   },
 
   // Delete user
-  deleteUser: async (id) => {
+  deleteUser: async (nik) => {
     try {
-      const response = await api.delete(`/users/${id}`);
+      const response = await api.delete(`/users/${nik}`);
       return response.data;
     } catch (error) {
       throw (
@@ -214,9 +261,9 @@ export const userService = {
   },
 
   // Change password
-  changePassword: async (id, passwordData) => {
+  changePassword: async (nik, passwordData) => {
     try {
-      const response = await api.put(`/users/${id}/password`, passwordData);
+      const response = await api.put(`/users/${nik}/password`, passwordData);
       return response.data;
     } catch (error) {
       throw (

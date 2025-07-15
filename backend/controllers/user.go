@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/username/backend/models"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // UserController handles user management operations
@@ -29,8 +27,8 @@ func NewUserController(userModel *models.UserModel) *UserController {
 
 // UpdateUserRequest represents update user request payload
 type UpdateUserRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 // ChangePasswordRequest represents change password request payload
@@ -79,8 +77,8 @@ func (uc *UserController) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetUserByID handles getting user by ID
-func (uc *UserController) GetUserByID(w http.ResponseWriter, r *http.Request) {
+// GetUserByNIK handles getting user by NIK
+func (uc *UserController) GetUserByNIK(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method != "GET" {
@@ -93,20 +91,19 @@ func (uc *UserController) GetUserByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract user ID from URL path
+	// Extract user NIK from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/users/")
-	userID, err := strconv.Atoi(path)
-	if err != nil {
+	if path == "" {
 		response := Response{
 			Success: false,
-			Message: "Invalid user ID",
+			Message: "Invalid NIK",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	user, err := uc.UserModel.GetByID(userID)
+	user, err := uc.UserModel.GetByNIK(path)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -152,10 +149,10 @@ func (uc *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate input
-	if req.Username == "" || req.Email == "" || req.Password == "" {
+	if req.NIK == "" || req.Name == "" || req.Email == "" || req.Password == "" {
 		response := Response{
 			Success: false,
-			Message: "Username, email, and password are required",
+			Message: "NIK, name, email, and password are required",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -174,12 +171,12 @@ func (uc *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if username already exists
-	existingUser, _ = uc.UserModel.GetByUsername(req.Username)
+	// Check if NIK already exists
+	existingUser, _ = uc.UserModel.GetByNIK(req.NIK)
 	if existingUser != nil {
 		response := Response{
 			Success: false,
-			Message: "Username already taken",
+			Message: "NIK already registered",
 		}
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(response)
@@ -221,13 +218,12 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract user ID from URL path
+	// Extract user NIK from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/users/")
-	userID, err := strconv.Atoi(path)
-	if err != nil {
+	if path == "" {
 		response := Response{
 			Success: false,
-			Message: "Invalid user ID",
+			Message: "Invalid NIK",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -235,7 +231,7 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user exists
-	_, err = uc.UserModel.GetByID(userID)
+	_, err := uc.UserModel.GetByNIK(path)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -258,10 +254,10 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate input
-	if req.Username == "" || req.Email == "" {
+	if req.Name == "" || req.Email == "" {
 		response := Response{
 			Success: false,
-			Message: "Username and email are required",
+			Message: "Name and email are required",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -270,7 +266,7 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	// Check if email already exists (excluding current user)
 	existingUser, _ := uc.UserModel.GetByEmail(req.Email)
-	if existingUser != nil && existingUser.ID != userID {
+	if existingUser != nil && existingUser.NIK != path {
 		response := Response{
 			Success: false,
 			Message: "Email already registered",
@@ -280,26 +276,13 @@ func (uc *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if username already exists (excluding current user)
-	existingUser, _ = uc.UserModel.GetByUsername(req.Username)
-	if existingUser != nil && existingUser.ID != userID {
-		response := Response{
-			Success: false,
-			Message: "Username already taken",
-		}
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(response)
-		return
-	}
-
 	// Update user
 	userReq := &models.UserRequest{
-		Username: req.Username,
-		Email:    req.Email,
-		Password: "", // Password not updated in this endpoint
+		Name:  req.Name,
+		Email: req.Email,
 	}
 
-	updatedUser, err := uc.UserModel.Update(userID, userReq)
+	updatedUser, err := uc.UserModel.Update(path, userReq)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -333,13 +316,12 @@ func (uc *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract user ID from URL path
+	// Extract user NIK from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/users/")
-	userID, err := strconv.Atoi(path)
-	if err != nil {
+	if path == "" {
 		response := Response{
 			Success: false,
-			Message: "Invalid user ID",
+			Message: "Invalid NIK",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -347,7 +329,7 @@ func (uc *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user exists
-	_, err = uc.UserModel.GetByID(userID)
+	_, err := uc.UserModel.GetByNIK(path)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -359,7 +341,7 @@ func (uc *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete user
-	err = uc.UserModel.Delete(userID)
+	err = uc.UserModel.Delete(path)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -392,14 +374,13 @@ func (uc *UserController) ChangePassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Extract user ID from URL path
+	// Extract user NIK from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/users/")
 	path = strings.TrimSuffix(path, "/password")
-	userID, err := strconv.Atoi(path)
-	if err != nil {
+	if path == "" {
 		response := Response{
 			Success: false,
-			Message: "Invalid user ID",
+			Message: "Invalid NIK",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -407,7 +388,7 @@ func (uc *UserController) ChangePassword(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get current user
-	currentUser, err := uc.UserModel.GetByID(userID)
+	currentUser, err := uc.UserModel.GetByNIK(path)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -451,8 +432,7 @@ func (uc *UserController) ChangePassword(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Verify current password
-	err = bcrypt.CompareHashAndPassword([]byte(currentUser.Password), []byte(req.CurrentPassword))
-	if err != nil {
+	if !uc.UserModel.CheckPassword(currentUser, req.CurrentPassword) {
 		response := Response{
 			Success: false,
 			Message: "Current password is incorrect",
@@ -463,7 +443,7 @@ func (uc *UserController) ChangePassword(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Update password
-	err = uc.UserModel.UpdatePassword(userID, req.NewPassword)
+	err = uc.UserModel.UpdatePassword(path, req.NewPassword)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -495,14 +475,13 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Extract user ID from URL path
+	// Extract user NIK from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/users/")
 	path = strings.TrimSuffix(path, "/profile")
-	userID, err := strconv.Atoi(path)
-	if err != nil {
+	if path == "" {
 		response := Response{
 			Success: false,
-			Message: "Invalid user ID",
+			Message: "Invalid NIK",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -510,7 +489,7 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Check if user exists
-	_, err = uc.UserModel.GetByID(userID)
+	_, err := uc.UserModel.GetByNIK(path)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -534,15 +513,15 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Get form values
-	username := r.FormValue("username")
+	name := r.FormValue("name")
 	email := r.FormValue("email")
 	removeProfilePicture := r.FormValue("remove_profile_picture")
 
 	// Validate input
-	if username == "" || email == "" {
+	if name == "" || email == "" {
 		response := Response{
 			Success: false,
-			Message: "Username and email are required",
+			Message: "Name and email are required",
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -552,7 +531,7 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	// Handle profile picture removal
 	if removeProfilePicture == "true" {
 		// Get current user to get existing profile picture path
-		currentUser, err := uc.UserModel.GetByID(userID)
+		currentUser, err := uc.UserModel.GetByNIK(path)
 		if err == nil && currentUser.ProfilePicture != nil && *currentUser.ProfilePicture != "" {
 			// Delete existing file
 			oldFilePath := "." + *currentUser.ProfilePicture
@@ -560,7 +539,7 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		}
 
 		// Update user with empty profile picture
-		updatedUser, err := uc.UserModel.UpdateWithProfilePicture(userID, username, email, "")
+		updatedUser, err := uc.UserModel.UpdateWithProfilePicture(path, name, email, "")
 		if err != nil {
 			response := Response{
 				Success: false,
@@ -632,7 +611,7 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 
 		// Generate unique filename
 		ext := filepath.Ext(header.Filename)
-		filename := fmt.Sprintf("%d_%d%s", userID, time.Now().Unix(), ext)
+		filename := fmt.Sprintf("%s_%d%s", path, time.Now().Unix(), ext)
 		filePath := filepath.Join(uploadsDir, filename)
 
 		// Create the file
@@ -667,15 +646,14 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	// Update user in database
 	var updatedUser *models.User
 	if profilePictureURL != "" {
-		updatedUser, err = uc.UserModel.UpdateWithProfilePicture(userID, username, email, profilePictureURL)
+		updatedUser, err = uc.UserModel.UpdateWithProfilePicture(path, name, email, profilePictureURL)
 	} else {
 		// Update without changing profile picture
 		userReq := &models.UserRequest{
-			Username: username,
-			Email:    email,
-			Password: "", // Password not updated in this endpoint
+			Name:  name,
+			Email: email,
 		}
-		updatedUser, err = uc.UserModel.Update(userID, userReq)
+		updatedUser, err = uc.UserModel.Update(path, userReq)
 	}
 
 	if err != nil {

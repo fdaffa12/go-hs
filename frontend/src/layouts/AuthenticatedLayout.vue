@@ -103,7 +103,7 @@
               <div class="text-sm text-gray-600">
                 Selamat datang,
                 <span class="font-medium text-gray-900">{{
-                  user?.username || "User"
+                  user?.name || "User"
                 }}</span>
               </div>
               <!-- Profile Picture -->
@@ -113,7 +113,7 @@
                 <img
                   v-if="user?.profile_picture"
                   :src="getProfileImageUrl(user.profile_picture)"
-                  :alt="user?.username || 'User'"
+                  :alt="user?.name || 'User'"
                   class="w-full h-full object-cover"
                 />
                 <div
@@ -121,7 +121,7 @@
                   class="w-full h-full bg-primary-100 flex items-center justify-center"
                 >
                   <span class="text-xs font-medium text-primary-600">
-                    {{ user?.username?.charAt(0).toUpperCase() || "U" }}
+                    {{ user?.name?.charAt(0).toUpperCase() || "U" }}
                   </span>
                 </div>
               </div>
@@ -410,7 +410,7 @@
               <img
                 v-if="user?.profile_picture"
                 :src="getProfileImageUrl(user.profile_picture)"
-                :alt="user?.username || 'User'"
+                :alt="user?.name || 'User'"
                 class="w-full h-full object-cover"
               />
               <div
@@ -418,15 +418,16 @@
                 class="w-full h-full bg-primary-100 flex items-center justify-center"
               >
                 <span class="text-sm font-medium text-primary-600">
-                  {{ user?.username?.charAt(0).toUpperCase() || "U" }}
+                  {{ user?.name?.charAt(0).toUpperCase() || "U" }}
                 </span>
               </div>
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-gray-900 truncate">
-                {{ user?.username || "User" }}
+                {{ user?.name || "User" }}
               </p>
               <p class="text-xs text-gray-500 truncate">
+                {{ user?.nik || "NIK" }} -
                 {{ user?.email || "user@example.com" }}
               </p>
             </div>
@@ -440,12 +441,12 @@
         >
           <div
             class="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200"
-            :title="user?.username || 'User'"
+            :title="user?.name || 'User'"
           >
             <img
               v-if="user?.profile_picture"
               :src="getProfileImageUrl(user.profile_picture)"
-              :alt="user?.username || 'User'"
+              :alt="user?.name || 'User'"
               class="w-full h-full object-cover"
             />
             <div
@@ -453,7 +454,7 @@
               class="w-full h-full bg-primary-100 flex items-center justify-center"
             >
               <span class="text-sm font-medium text-primary-600">
-                {{ user?.username?.charAt(0).toUpperCase() || "U" }}
+                {{ user?.name?.charAt(0).toUpperCase() || "U" }}
               </span>
             </div>
           </div>
