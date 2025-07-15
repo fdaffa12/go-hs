@@ -17,6 +17,7 @@ import Profile from "./pages/Profile.vue";
 import Settings from "./pages/Settings.vue";
 import UserManagement from "./pages/UserManagement.vue";
 import DepartmentManagement from "./pages/DepartmentManagement.vue";
+import EmployeeManagement from "./pages/EmployeeManagement.vue";
 
 // Define routes
 const routes = [
@@ -30,6 +31,11 @@ const routes = [
   {
     path: "/departments",
     component: DepartmentManagement,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/employees",
+    component: EmployeeManagement,
     meta: { requiresAuth: true },
   },
 ];

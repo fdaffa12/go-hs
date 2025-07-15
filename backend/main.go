@@ -29,14 +29,16 @@ func main() {
 	// Initialize models
 	userModel := models.NewUserModel(db)
 	departmentModel := models.NewDepartmentModel(db)
+	employeeModel := models.NewEmployeeModel(db)
 
 	// Initialize controllers
 	authController := controllers.NewAuthController(userModel)
 	userController := controllers.NewUserController(userModel)
 	departmentController := controllers.NewDepartmentController(departmentModel)
+	employeeController := controllers.NewEmployeeController(employeeModel)
 
 	// Initialize router
-	router := routes.NewRouter(authController, userController, departmentController)
+	router := routes.NewRouter(authController, userController, departmentController, employeeController)
 	mux := router.SetupRoutes()
 
 	// Get server port

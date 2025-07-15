@@ -300,6 +300,75 @@ export const departmentService = {
   },
 };
 
+// Employee Service
+export const employeeService = {
+  getAllEmployees: async () => {
+    try {
+      const response = await api.get("/employees");
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  createEmployee: async (employeeData) => {
+    try {
+      const response = await api.post("/employees", employeeData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  updateEmployee: async (nik, employeeData) => {
+    try {
+      const response = await api.put(`/employees/${nik}`, employeeData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  deleteEmployee: async (nik) => {
+    try {
+      const response = await api.delete(`/employees/${nik}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  hardDeleteEmployee: async (nik) => {
+    try {
+      const response = await api.delete(`/employees/hard-delete/${nik}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  activateEmployee: async (nik) => {
+    try {
+      const response = await api.put(`/employees/activate/${nik}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+};
+
 // Test connection
 export const testConnection = async () => {
   try {
