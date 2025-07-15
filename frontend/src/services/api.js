@@ -274,6 +274,30 @@ export const departmentService = {
       );
     }
   },
+
+  hardDeleteDepartment: async (shortName) => {
+    try {
+      const response = await api.delete(
+        `/departments/hard-delete/${shortName}`
+      );
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  activateDepartment: async (shortName) => {
+    try {
+      const response = await api.put(`/departments/activate/${shortName}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
 };
 
 // Test connection

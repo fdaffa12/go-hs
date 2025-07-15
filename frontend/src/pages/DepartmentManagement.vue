@@ -108,6 +108,11 @@
                   Nama Departemen
                 </th>
                 <th
+                  class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]"
+                >
+                  Status
+                </th>
+                <th
                   class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]"
                 >
                   Dibuat
@@ -122,7 +127,7 @@
             <tbody class="divide-y divide-gray-200">
               <tr v-if="loading" class="animate-pulse">
                 <td
-                  colspan="4"
+                  colspan="5"
                   class="px-3 sm:px-6 py-3 sm:py-4 text-center text-gray-500 text-sm"
                 >
                   Memuat departemen...
@@ -130,7 +135,7 @@
               </tr>
               <tr v-else-if="filteredDepartments.length === 0">
                 <td
-                  colspan="4"
+                  colspan="5"
                   class="px-3 sm:px-6 py-3 sm:py-4 text-center text-gray-500 text-sm"
                 >
                   Tidak ada departemen ditemukan
@@ -151,6 +156,18 @@
                   <div class="text-sm text-gray-900">{{ dept.long_name }}</div>
                 </td>
                 <td class="px-3 sm:px-6 py-3 sm:py-4">
+                  <span
+                    :class="[
+                      'px-2 py-1 text-xs rounded-full',
+                      dept.delete_status
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-green-100 text-green-800',
+                    ]"
+                  >
+                    {{ dept.delete_status ? "Non-Aktif" : "Aktif" }}
+                  </span>
+                </td>
+                <td class="px-3 sm:px-6 py-3 sm:py-4">
                   <div class="text-xs sm:text-sm text-gray-900">
                     {{ formatDate(dept.created_at) }}
                   </div>
@@ -160,6 +177,7 @@
                 >
                   <div class="flex justify-end gap-1 sm:gap-2">
                     <button
+                      v-if="!dept.delete_status"
                       @click="editDepartment(dept)"
                       class="text-blue-600 hover:text-blue-900 p-1 sm:p-1.5 rounded transition-colors"
                       title="Edit Departemen"
@@ -179,9 +197,49 @@
                       </svg>
                     </button>
                     <button
-                      @click="deleteDepartment(dept)"
+                      v-if="!dept.delete_status"
+                      @click="softDeleteDepartment(dept)"
+                      class="text-yellow-600 hover:text-yellow-900 p-1 sm:p-1.5 rounded transition-colors"
+                      title="Non-aktifkan Departemen"
+                    >
+                      <svg
+                        class="w-3 h-3 sm:w-4 sm:h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                        ></path>
+                      </svg>
+                    </button>
+                    <button
+                      v-if="dept.delete_status"
+                      @click="activateDepartment(dept)"
+                      class="text-green-600 hover:text-green-900 p-1 sm:p-1.5 rounded transition-colors"
+                      title="Aktifkan Departemen"
+                    >
+                      <svg
+                        class="w-3 h-3 sm:w-4 sm:h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        ></path>
+                      </svg>
+                    </button>
+                    <button
+                      @click="showHardDeleteConfirm(dept)"
                       class="text-red-600 hover:text-red-900 p-1 sm:p-1.5 rounded transition-colors"
-                      title="Hapus Departemen"
+                      title="Hapus Permanen"
                     >
                       <svg
                         class="w-3 h-3 sm:w-4 sm:h-4"
@@ -309,6 +367,73 @@
           </div>
         </div>
       </div>
+
+      <!-- Soft Delete Confirmation Modal -->
+      <div
+        v-if="showSoftDeleteModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      >
+        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
+          <h3 class="text-lg sm:text-xl font-semibold mb-4 text-yellow-600">
+            Non-aktifkan Departemen
+          </h3>
+          <p class="text-sm sm:text-base text-gray-700 mb-6">
+            Apakah Anda yakin ingin menonaktifkan departemen
+            <strong>{{ departmentToDelete?.long_name }}</strong
+            >? Departemen yang dinonaktifkan masih dapat dilihat dalam sistem.
+          </p>
+
+          <div class="flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              @click="showSoftDeleteModal = false"
+              class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+            >
+              Batal
+            </button>
+            <button
+              @click="confirmSoftDelete"
+              :disabled="submitting"
+              class="px-4 py-2 text-sm sm:text-base bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+            >
+              {{ submitting ? "Menonaktifkan..." : "Non-aktifkan" }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hard Delete Confirmation Modal -->
+      <div
+        v-if="showHardDeleteModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      >
+        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
+          <h3 class="text-lg sm:text-xl font-semibold mb-4 text-red-600">
+            Hapus Permanen Departemen
+          </h3>
+          <p class="text-sm sm:text-base text-gray-700 mb-6">
+            Apakah Anda yakin ingin menghapus departemen
+            <strong>{{ departmentToHardDelete?.long_name }}</strong>
+            secara permanen? Tindakan ini tidak dapat dibatalkan dan data akan
+            dihapus dari sistem.
+          </p>
+
+          <div class="flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              @click="showHardDeleteModal = false"
+              class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+            >
+              Batal
+            </button>
+            <button
+              @click="confirmHardDelete"
+              :disabled="submitting"
+              class="px-4 py-2 text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+            >
+              {{ submitting ? "Menghapus..." : "Hapus Permanen" }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </AuthenticatedLayout>
 </template>
@@ -333,6 +458,8 @@ const searchQuery = ref("");
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
+const showSoftDeleteModal = ref(false);
+const showHardDeleteModal = ref(false);
 
 // Form data
 const departmentForm = ref({
@@ -341,6 +468,7 @@ const departmentForm = ref({
 });
 
 const departmentToDelete = ref(null);
+const departmentToHardDelete = ref(null);
 
 // Computed
 const filteredDepartments = computed(() => {
@@ -480,6 +608,107 @@ const formatDate = (dateString) => {
     });
   } catch (error) {
     return "Invalid Date";
+  }
+};
+
+// Add new method for hard delete
+const hardDeleteDepartment = (dept) => {
+  if (
+    confirm(
+      `Apakah Anda yakin ingin menghapus departemen ${dept.long_name} secara permanen? Tindakan ini tidak dapat dibatalkan.`
+    )
+  ) {
+    submitting.value = true;
+    departmentService
+      .hardDeleteDepartment(dept.short_name)
+      .then((data) => {
+        if (data.success) {
+          fetchDepartments();
+          toast.success("Departemen berhasil dihapus secara permanen");
+        } else {
+          toast.error("Gagal menghapus departemen: " + data.message);
+        }
+      })
+      .catch((error) => {
+        console.error("Error hard deleting department:", error);
+        toast.error("Terjadi kesalahan saat menghapus departemen");
+      })
+      .finally(() => {
+        submitting.value = false;
+      });
+  }
+};
+
+// Methods for soft delete
+const softDeleteDepartment = (dept) => {
+  departmentToDelete.value = dept;
+  showSoftDeleteModal.value = true;
+};
+
+const confirmSoftDelete = async () => {
+  submitting.value = true;
+  try {
+    const data = await departmentService.deleteDepartment(
+      departmentToDelete.value.short_name
+    );
+    if (data.success) {
+      await fetchDepartments();
+      showSoftDeleteModal.value = false;
+      toast.success("Departemen berhasil dinonaktifkan");
+    } else {
+      toast.error("Gagal menonaktifkan departemen: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error soft deleting department:", error);
+    toast.error("Terjadi kesalahan saat menonaktifkan departemen");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+// Methods for hard delete
+const showHardDeleteConfirm = (dept) => {
+  departmentToHardDelete.value = dept;
+  showHardDeleteModal.value = true;
+};
+
+const confirmHardDelete = async () => {
+  submitting.value = true;
+  try {
+    const data = await departmentService.hardDeleteDepartment(
+      departmentToHardDelete.value.short_name
+    );
+    if (data.success) {
+      await fetchDepartments();
+      showHardDeleteModal.value = false;
+      toast.success("Departemen berhasil dihapus secara permanen");
+    } else {
+      toast.error("Gagal menghapus departemen: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error hard deleting department:", error);
+    toast.error("Terjadi kesalahan saat menghapus departemen");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+// Methods for activation
+const activateDepartment = async (dept) => {
+  submitting.value = true;
+  try {
+    const data = await departmentService.activateDepartment(dept.short_name);
+    if (data.success) {
+      await fetchDepartments();
+      toast.success("Departemen berhasil diaktifkan");
+    } else {
+      toast.error("Gagal mengaktifkan departemen: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error activating department:", error);
+    toast.error("Terjadi kesalahan saat mengaktifkan departemen");
+  } finally {
+    submitting.value = false;
   }
 };
 

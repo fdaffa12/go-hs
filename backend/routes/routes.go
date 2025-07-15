@@ -110,6 +110,18 @@ func (router *Router) handleUserRoutes(w http.ResponseWriter, r *http.Request) {
 func (router *Router) handleDepartmentRoutes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/departments")
 
+	// Handle hard delete
+	if strings.HasPrefix(path, "/hard-delete/") {
+		router.DepartmentController.HardDeleteDepartment(w, r)
+		return
+	}
+
+	// Handle activate
+	if strings.HasPrefix(path, "/activate/") {
+		router.DepartmentController.ActivateDepartment(w, r)
+		return
+	}
+
 	// Route for getting all departments or creating new department
 	if path == "" || path == "/" {
 		switch r.Method {

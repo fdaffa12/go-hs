@@ -233,4 +233,88 @@ func (dc *DepartmentController) DeleteDepartment(w http.ResponseWriter, r *http.
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// HardDeleteDepartment handles permanently deleting a department
+func (dc *DepartmentController) HardDeleteDepartment(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+
+    if r.Method != "DELETE" {
+        response := Response{
+            Success: false,
+            Message: "Method not allowed",
+        }
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    // Extract department short name from URL path
+    path := strings.TrimPrefix(r.URL.Path, "/api/departments/hard-delete/")
+    shortName := path
+
+    // Delete department permanently
+    err := dc.DepartmentModel.HardDelete(shortName)
+    if err != nil {
+        response := Response{
+            Success: false,
+            Message: "Gagal menghapus departemen secara permanen: " + err.Error(),
+        }
+        if err.Error() == "department not found" {
+            w.WriteHeader(http.StatusNotFound)
+        } else {
+            w.WriteHeader(http.StatusInternalServerError)
+        }
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    response := Response{
+        Success: true,
+        Message: "Departemen berhasil dihapus secara permanen",
+    }
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(response)
+}
+
+// ActivateDepartment handles reactivating a soft-deleted department
+func (dc *DepartmentController) ActivateDepartment(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+
+    if r.Method != "PUT" {
+        response := Response{
+            Success: false,
+            Message: "Method not allowed",
+        }
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    // Extract department short name from URL path
+    path := strings.TrimPrefix(r.URL.Path, "/api/departments/activate/")
+    shortName := path
+
+    // Activate department
+    err := dc.DepartmentModel.Activate(shortName)
+    if err != nil {
+        response := Response{
+            Success: false,
+            Message: "Gagal mengaktifkan departemen: " + err.Error(),
+        }
+        if err.Error() == "department not found" {
+            w.WriteHeader(http.StatusNotFound)
+        } else {
+            w.WriteHeader(http.StatusInternalServerError)
+        }
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    response := Response{
+        Success: true,
+        Message: "Departemen berhasil diaktifkan",
+    }
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(response)
 } 
