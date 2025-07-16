@@ -493,6 +493,9 @@ func (uc *UserController) ChangePassword(w http.ResponseWriter, r *http.Request)
 func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Debug log
+	fmt.Printf("UpdateUserProfile called with method: %s, URL: %s\n", r.Method, r.URL.Path)
+
 	if r.Method != "PUT" {
 		response := Response{
 			Success: false,
@@ -506,6 +509,10 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	// Extract user NIK from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/users/")
 	path = strings.TrimSuffix(path, "/profile")
+	
+	// Debug log
+	fmt.Printf("Extracted NIK from path: %s\n", path)
+
 	if path == "" {
 		response := Response{
 			Success: false,
@@ -517,8 +524,10 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Check if user exists
-	_, err := uc.UserModel.GetByNIK(path)
+	currentUser, err := uc.UserModel.GetByNIK(path)
 	if err != nil {
+		// Debug log
+		fmt.Printf("Error getting user by NIK: %v\n", err)
 		response := Response{
 			Success: false,
 			Message: "User not found",
@@ -528,12 +537,17 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Parse multipart form
-	err = r.ParseMultipartForm(10 << 20) // 10 MB max
+	// Debug log
+	fmt.Printf("Current user found: %+v\n", currentUser)
+
+	// Parse multipart form with larger size limit
+	err = r.ParseMultipartForm(32 << 20) // 32 MB max
 	if err != nil {
+		// Debug log
+		fmt.Printf("Error parsing multipart form: %v\n", err)
 		response := Response{
 			Success: false,
-			Message: "Failed to parse form data",
+			Message: fmt.Sprintf("Failed to parse form data: %v", err),
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -543,7 +557,11 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	// Get form values
 	name := r.FormValue("name")
 	email := r.FormValue("email")
-	removeProfilePicture := r.FormValue("remove_profile_picture")
+	removeProfilePicture := r.FormValue("remove_profile_picture") == "true"
+
+	// Debug log
+	fmt.Printf("Form values - name: %s, email: %s, removeProfilePicture: %v\n", 
+		name, email, removeProfilePicture)
 
 	// Validate input
 	if name == "" || email == "" {
@@ -556,143 +574,147 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	var profilePictureURL string
+
 	// Handle profile picture removal
-	if removeProfilePicture == "true" {
-		// Get current user to get existing profile picture path
-		currentUser, err := uc.UserModel.GetByNIK(path)
-		if err == nil && currentUser.ProfilePicture != nil && *currentUser.ProfilePicture != "" {
-			// Delete existing file
+	if removeProfilePicture {
+		// Debug log
+		fmt.Printf("Removing profile picture for user: %s\n", path)
+		
+		// If user has an existing profile picture, delete the file
+		if currentUser.ProfilePicture != nil && *currentUser.ProfilePicture != "" {
 			oldFilePath := "." + *currentUser.ProfilePicture
+			// Debug log
+			fmt.Printf("Deleting old profile picture: %s\n", oldFilePath)
 			os.Remove(oldFilePath)
 		}
+		profilePictureURL = "" // This will trigger profile picture removal in the model
+	} else {
+		// Handle new file upload if provided
+		file, header, err := r.FormFile("profile_picture")
+		if err == nil {
+			defer file.Close()
 
-		// Update user with empty profile picture
-		updatedUser, err := uc.UserModel.UpdateWithProfilePicture(path, name, email, "")
-		if err != nil {
-			response := Response{
-				Success: false,
-				Message: "Failed to remove profile picture",
+			// Debug log
+			fmt.Printf("New file upload detected - filename: %s, size: %d, content-type: %s\n",
+				header.Filename, header.Size, header.Header.Get("Content-Type"))
+
+			// Validate file type
+			allowedTypes := map[string]bool{
+				"image/jpeg": true,
+				"image/jpg":  true,
+				"image/png":  true,
+				"image/gif":  true,
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(response)
-			return
-		}
 
-		response := Response{
-			Success: true,
-			Message: "Profile picture removed successfully",
-			Data:    updatedUser.ToResponse(),
+			contentType := header.Header.Get("Content-Type")
+			if !allowedTypes[contentType] {
+				response := Response{
+					Success: false,
+					Message: "Invalid file type. Only JPEG, PNG, and GIF are allowed",
+				}
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(response)
+				return
+			}
+
+			// Validate file size (2MB)
+			if header.Size > 2*1024*1024 {
+				response := Response{
+					Success: false,
+					Message: "File size too large. Maximum 2MB allowed",
+				}
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(response)
+				return
+			}
+
+			// Create uploads directory if it doesn't exist
+			uploadsDir := "uploads/profile_pictures"
+			err = os.MkdirAll(uploadsDir, 0755)
+			if err != nil {
+				response := Response{
+					Success: false,
+					Message: "Failed to create upload directory",
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(response)
+				return
+			}
+
+			// Delete existing profile picture if exists
+			if currentUser.ProfilePicture != nil && *currentUser.ProfilePicture != "" {
+				oldFilePath := "." + *currentUser.ProfilePicture
+				os.Remove(oldFilePath)
+			}
+
+			// Generate unique filename
+			ext := filepath.Ext(header.Filename)
+			filename := fmt.Sprintf("%s_%d%s", path, time.Now().Unix(), ext)
+			filePath := filepath.Join(uploadsDir, filename)
+
+			// Create the file
+			dst, err := os.Create(filePath)
+			if err != nil {
+				response := Response{
+					Success: false,
+					Message: "Failed to create file",
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(response)
+				return
+			}
+			defer dst.Close()
+
+			// Copy file content
+			_, err = io.Copy(dst, file)
+			if err != nil {
+				response := Response{
+					Success: false,
+					Message: "Failed to save file",
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(response)
+				return
+			}
+
+			// Set profile picture URL
+			profilePictureURL = fmt.Sprintf("/uploads/profile_pictures/%s", filename)
+			
+			// Debug log
+			fmt.Printf("File saved successfully at: %s\n", filePath)
+			fmt.Printf("Profile picture URL set to: %s\n", profilePictureURL)
+		} else {
+			// Debug log
+			fmt.Printf("No new file uploaded: %v\n", err)
+			
+			// If no new file and not removing, keep existing profile picture
+			if currentUser.ProfilePicture != nil {
+				profilePictureURL = *currentUser.ProfilePicture
+			}
 		}
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
-		return
 	}
 
-	// Handle file upload
-	var profilePictureURL string
-	file, header, err := r.FormFile("profile_picture")
-	if err == nil {
-		defer file.Close()
-
-		// Validate file type
-		allowedTypes := map[string]bool{
-			"image/jpeg": true,
-			"image/jpg":  true,
-			"image/png":  true,
-			"image/gif":  true,
-		}
-
-		contentType := header.Header.Get("Content-Type")
-		if !allowedTypes[contentType] {
-			response := Response{
-				Success: false,
-				Message: "Invalid file type. Only JPEG, PNG, and GIF are allowed",
-			}
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// Validate file size (2MB)
-		if header.Size > 2*1024*1024 {
-			response := Response{
-				Success: false,
-				Message: "File size too large. Maximum 2MB allowed",
-			}
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// Create uploads directory if it doesn't exist
-		uploadsDir := "uploads/profile_pictures"
-		err = os.MkdirAll(uploadsDir, 0755)
-		if err != nil {
-			response := Response{
-				Success: false,
-				Message: "Failed to create upload directory",
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// Generate unique filename
-		ext := filepath.Ext(header.Filename)
-		filename := fmt.Sprintf("%s_%d%s", path, time.Now().Unix(), ext)
-		filePath := filepath.Join(uploadsDir, filename)
-
-		// Create the file
-		dst, err := os.Create(filePath)
-		if err != nil {
-			response := Response{
-				Success: false,
-				Message: "Failed to create file",
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-		defer dst.Close()
-
-		// Copy file content
-		_, err = io.Copy(dst, file)
-		if err != nil {
-			response := Response{
-				Success: false,
-				Message: "Failed to save file",
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// Set profile picture URL
-		profilePictureURL = fmt.Sprintf("/uploads/profile_pictures/%s", filename)
-	}
+	// Debug log before database update
+	fmt.Printf("Updating user profile - NIK: %s, name: %s, email: %s, profilePictureURL: %s\n",
+		path, name, email, profilePictureURL)
 
 	// Update user in database
-	var updatedUser *models.User
-	if profilePictureURL != "" {
-		updatedUser, err = uc.UserModel.UpdateWithProfilePicture(path, name, email, profilePictureURL)
-	} else {
-		// Update without changing profile picture
-		userReq := &models.UserRequest{
-			Name:  name,
-			Email: email,
-		}
-		updatedUser, err = uc.UserModel.Update(path, userReq)
-	}
-
+	updatedUser, err := uc.UserModel.UpdateWithProfilePicture(path, name, email, profilePictureURL)
 	if err != nil {
+		// Debug log
+		fmt.Printf("Error updating user profile: %v\n", err)
 		response := Response{
 			Success: false,
-			Message: "Failed to update user profile",
+			Message: fmt.Sprintf("Failed to update user profile: %v", err),
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(response)
 		return
 	}
+
+	// Debug log success
+	fmt.Printf("Successfully updated user profile: %+v\n", updatedUser)
 
 	response := Response{
 		Success: true,

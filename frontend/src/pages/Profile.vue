@@ -15,10 +15,11 @@ const loadingMessage = ref("");
 const showEditModal = ref(false);
 const showPasswordModal = ref(false);
 const editForm = reactive({
-  username: "",
+  name: "",
   email: "",
   profileImage: null,
 });
+const removeProfilePicture = ref(false);
 const profileImagePreview = ref(null);
 const passwordForm = reactive({
   currentPassword: "",
@@ -103,13 +104,19 @@ const updateProfile = async () => {
       return;
     }
 
-    // Always use FormData
+    // Create FormData object
     const formData = new FormData();
     formData.append("name", editForm.name.trim());
     formData.append("email", editForm.email.trim());
 
+    // Add profile picture if exists
     if (editForm.profileImage) {
       formData.append("profile_picture", editForm.profileImage);
+    }
+
+    // Add remove_profile_picture flag if needed
+    if (removeProfilePicture.value) {
+      formData.append("remove_profile_picture", "true");
     }
 
     const response = await userService.updateUserProfile(
@@ -131,8 +138,7 @@ const updateProfile = async () => {
       toast.error(response.message || "Gagal memperbarui profile");
     }
   } catch (error) {
-    console.error("Error updating profile:", error);
-    toast.error("Terjadi kesalahan saat memperbarui profile");
+    toast.error(error.message || "Terjadi kesalahan saat memperbarui profile");
   } finally {
     loading.value = false;
     loadingMessage.value = "";
@@ -146,42 +152,34 @@ const removeProfileImage = async () => {
       loading.value = true;
       loadingMessage.value = "Menghapus foto profil...";
 
-      const formData = new FormData();
-      formData.append("name", authStore.user.name);
-      formData.append("email", authStore.user.email);
-      formData.append("remove_profile_picture", "true");
+      removeProfilePicture.value = true;
+      editForm.profileImage = null;
+      profileImagePreview.value = null;
 
-      const response = await userService.updateUserProfile(
-        authStore.user.nik,
-        formData
-      );
-
-      if (response.success) {
-        // Update auth store with new user data
-        await authStore.updateProfile({
-          name: authStore.user.name,
-          email: authStore.user.email,
-          profile_picture: null,
-        });
-        toast.success("Foto profil berhasil dihapus");
-      } else {
-        toast.error(response.message || "Gagal menghapus foto profil");
-        return;
+      // Clear file input
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput) {
+        fileInput.value = "";
       }
-    }
 
-    // Clear form data and preview
-    editForm.profileImage = null;
-    profileImagePreview.value = null;
+      await updateProfile();
+      removeProfilePicture.value = false;
+    } else {
+      // Just clear form data and preview
+      editForm.profileImage = null;
+      profileImagePreview.value = null;
+      removeProfilePicture.value = false;
 
-    // Clear file input
-    const fileInput = document.querySelector('input[type="file"]');
-    if (fileInput) {
-      fileInput.value = "";
+      // Clear file input
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput) {
+        fileInput.value = "";
+      }
     }
   } catch (error) {
     console.error("Error removing profile image:", error);
     toast.error("Terjadi kesalahan saat menghapus foto profil");
+    removeProfilePicture.value = false;
   } finally {
     loading.value = false;
     loadingMessage.value = "";

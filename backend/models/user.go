@@ -170,12 +170,85 @@ func (m *UserModel) Update(nik string, user *UserRequest) (*User, error) {
 
 // UpdateWithProfilePicture updates user with profile picture
 func (m *UserModel) UpdateWithProfilePicture(nik string, name, email, profilePicture string) (*User, error) {
-	query := `UPDATE hs_wsb_user SET NAME = ?, EMAIL = ?, PROFILE_PICTURE = ?, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
-	_, err := m.DB.Exec(query, name, email, profilePicture, nik)
+	// Debug log
+	fmt.Printf("UpdateWithProfilePicture called with: NIK=%s, name=%s, email=%s, profilePicture=%s\n", 
+		nik, name, email, profilePicture)
+
+	// Check if user exists first
+	existingUser, err := m.GetByNIK(nik)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update user with profile picture: %v", err)
+		return nil, fmt.Errorf("user not found: %v", err)
 	}
 
+	// Debug log
+	fmt.Printf("Existing user found: %+v\n", existingUser)
+
+	// Check if email exists for another user
+	if email != "" && email != existingUser.Email {
+		existingUserByEmail, err := m.GetByEmail(email)
+		if err == nil && existingUserByEmail != nil && existingUserByEmail.NIK != nik {
+			return nil, fmt.Errorf("email already registered")
+		}
+	}
+
+	// Check if any changes are needed
+	needsUpdate := false
+	if name != existingUser.Name || email != existingUser.Email {
+		needsUpdate = true
+	}
+
+	// For profile picture, compare with existing value considering nil cases
+	currentProfilePicture := ""
+	if existingUser.ProfilePicture != nil {
+		currentProfilePicture = *existingUser.ProfilePicture
+	}
+	if profilePicture != currentProfilePicture {
+		needsUpdate = true
+	}
+
+	// Debug log update status
+	fmt.Printf("Update needed: %v (name changed: %v, email changed: %v, profile picture changed: %v)\n",
+		needsUpdate,
+		name != existingUser.Name,
+		email != existingUser.Email,
+		profilePicture != currentProfilePicture)
+
+	// If no changes needed, return existing user
+	if !needsUpdate {
+		return existingUser, nil
+	}
+
+	// Build query and args based on what's being updated
+	var query string
+	var args []interface{}
+
+	if profilePicture != "" {
+		// Update with new profile picture
+		query = `UPDATE hs_wsb_user SET NAME = ?, EMAIL = ?, PROFILE_PICTURE = ?, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
+		args = []interface{}{name, email, profilePicture, nik}
+	} else {
+		// Remove profile picture or update without profile picture
+		query = `UPDATE hs_wsb_user SET NAME = ?, EMAIL = ?, PROFILE_PICTURE = NULL, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
+		args = []interface{}{name, email, nik}
+	}
+
+	// Debug log
+	fmt.Printf("Executing query: %s with args: %v\n", query, args)
+
+	result, err := m.DB.Exec(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute update query: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected: %v", err)
+	}
+
+	// Debug log
+	fmt.Printf("Rows affected: %d\n", rowsAffected)
+
+	// Return updated user
 	return m.GetByNIK(nik)
 }
 

@@ -83,24 +83,42 @@ export const useAuthStore = defineStore("auth", () => {
     authService.logout();
   };
 
+  // Update user profile
   const updateProfile = async (userData) => {
     try {
+      // Create FormData for the update
+      const formData = new FormData();
+      formData.append("name", userData.name);
+      formData.append("email", userData.email);
+
+      // If profile_picture is provided and it's a File object, append it
+      if (userData.profile_picture instanceof File) {
+        formData.append("profile_picture", userData.profile_picture);
+      }
+
+      // If remove_profile_picture flag is provided
+      if (userData.remove_profile_picture) {
+        formData.append("remove_profile_picture", "true");
+      }
+
       const response = await userService.updateUserProfile(
         user.value.nik,
-        userData
+        formData
       );
 
       if (response.success) {
+        // Update local user data
         user.value = {
           ...user.value,
-          name: response.data.name,
-          email: response.data.email,
+          name: userData.name,
+          email: userData.email,
           profile_picture: response.data.profile_picture,
         };
         localStorage.setItem("user", JSON.stringify(user.value));
+        return response;
+      } else {
+        throw new Error(response.message || "Failed to update profile");
       }
-
-      return response;
     } catch (error) {
       console.error("Update profile error:", error);
       throw error;

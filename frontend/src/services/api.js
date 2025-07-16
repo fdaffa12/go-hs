@@ -61,17 +61,13 @@ export const authService = {
   // Get available employees for registration
   getAvailableEmployees: async () => {
     try {
-      console.log("Calling /available-employees endpoint");
       const response = await api.get("/available-employees");
-      console.log("Raw API response:", response);
       if (response.data && response.data.success) {
-        console.log("Processed employees data:", response.data);
         return response.data;
       } else {
         throw new Error(response.data?.message || "Failed to fetch employees");
       }
     } catch (error) {
-      console.error("API Error in getAvailableEmployees:", error);
       throw (
         error.response?.data || {
           success: false,
@@ -84,12 +80,7 @@ export const authService = {
   // Register user
   register: async (userData) => {
     try {
-      console.log("Sending registration request with data:", {
-        ...userData,
-        password: "[REDACTED]",
-      });
       const response = await api.post("/register", userData);
-      console.log("Registration response:", response.data);
       if (response.data.success && response.data.data.token) {
         localStorage.setItem("token", response.data.data.token);
         localStorage.setItem(
@@ -105,7 +96,6 @@ export const authService = {
       }
       return response.data;
     } catch (error) {
-      console.error("Registration API error:", error.response?.data || error);
       throw (
         error.response?.data || { success: false, message: "Network error" }
       );
@@ -206,14 +196,7 @@ export const userService = {
   // Update user
   updateUser: async (nik, userData) => {
     try {
-      console.log("Sending update request for NIK:", nik);
-      console.log("Update data:", {
-        ...userData,
-        password: userData.password ? "[REDACTED]" : undefined,
-      });
-
       const response = await api.put(`/users/${nik}`, userData);
-      console.log("Update response:", response.data);
 
       if (!response.data.success) {
         throw new Error(response.data.message || "Failed to update user");
@@ -221,7 +204,6 @@ export const userService = {
 
       return response.data;
     } catch (error) {
-      console.error("API Error in updateUser:", error);
       if (error.response?.data) {
         throw error.response.data;
       }
