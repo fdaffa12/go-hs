@@ -397,7 +397,7 @@
         <div class="border-t border-gray-200 my-4"></div>
 
         <!-- User Section -->
-        <div v-if="!sidebarCollapsed || !$breakpoint.lg" class="px-3 py-2">
+        <div v-if="!sidebarCollapsed || !isLargeScreen" class="px-3 py-2">
           <div
             class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2"
           >
@@ -436,7 +436,7 @@
 
         <!-- Collapsed User Avatar (Desktop only) -->
         <div
-          v-if="sidebarCollapsed"
+          v-if="sidebarCollapsed && isLargeScreen"
           class="hidden lg:flex px-3 py-2 justify-center"
         >
           <div
@@ -483,7 +483,7 @@
             />
           </svg>
           <span
-            v-if="!sidebarCollapsed || !$breakpoint.lg"
+            v-if="!sidebarCollapsed || !isLargeScreen"
             class="transition-opacity duration-300"
             >Logout</span
           >
@@ -518,7 +518,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
@@ -541,6 +541,20 @@ const emit = defineEmits(["logout"]);
 // Reactive data
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(false);
+const isLargeScreen = ref(window?.innerWidth >= 1024);
+
+// Watch window resize
+const handleResize = () => {
+  isLargeScreen.value = window.innerWidth >= 1024;
+};
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
 
 // Computed properties
 const pageTitle = computed(() => {
