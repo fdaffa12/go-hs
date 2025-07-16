@@ -415,12 +415,35 @@
                     {{ schedule.style_no }}
                   </div>
                 </td>
+                <!-- MP Column -->
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ schedule.number_of_mp }}
+                  <div v-if="schedule.isEditing">
+                    <input
+                      v-model.number="schedule.editedNumberOfMp"
+                      type="number"
+                      class="form-input w-full"
+                      placeholder="MP"
+                      min="1"
+                    />
+                  </div>
+                  <div v-else>
+                    {{ schedule.number_of_mp }}
+                  </div>
                 </td>
+                <!-- Start Date Column -->
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ formatDate(schedule.start_date) }}
+                  <div v-if="schedule.isEditing">
+                    <input
+                      v-model="schedule.editedStartDate"
+                      type="date"
+                      class="form-input w-full"
+                    />
+                  </div>
+                  <div v-else>
+                    {{ formatDate(schedule.start_date) }}
+                  </div>
                 </td>
+                <!-- Working Days Column - Remove the edit functionality -->
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {{ schedule.working_day }}
                 </td>
@@ -871,29 +894,34 @@ const mapTypeToFactory = (type, currentFactory = null) => {
 
 // Update the saveInlineEdit function
 const saveInlineEdit = async (schedule) => {
-  // Format line value for database - keep as is for component, use number for assembly
   const lineForDb =
     schedule.editedType === "component" ? "AREA" : schedule.editedLine;
 
+  // Format the date properly for the ID and payload
+  const formattedStartDate = new Date(schedule.editedStartDate)
+    .toISOString()
+    .split("T")[0];
+
   const newIdRegistrasi = generateRegistrationId(
     schedule.editedType,
-    lineForDb, // Pass the database format line value
+    lineForDb,
     schedule.editedStyleNo,
-    schedule.start_date
+    formattedStartDate
   );
 
   const currentFactory = filters.value.factory || schedule.factory;
 
+  // Prepare the payload with correct date formats
   const payload = {
     id_registrasi: newIdRegistrasi,
-    date: schedule.date,
+    date: new Date().toISOString(), // Format as full ISO string
     factory: currentFactory,
-    line: lineForDb, // Store raw line value (AREA or number)
+    line: lineForDb,
     buyer_short_name: schedule.editedBuyerShortName,
     style_no: schedule.editedStyleNo,
-    start_date: schedule.start_date,
-    number_of_mp: schedule.number_of_mp,
-    working_day: schedule.working_day,
+    start_date: new Date(schedule.editedStartDate).toISOString(), // Format as full ISO string
+    number_of_mp: parseInt(schedule.editedNumberOfMp) || 0,
+    working_day: parseInt(schedule.working_day), // Pastikan ini integer
   };
 
   try {
@@ -905,11 +933,13 @@ const saveInlineEdit = async (schedule) => {
       toast.success("Line schedule berhasil diperbarui");
       // Update the schedule with new values
       schedule.type = schedule.editedType;
-      schedule.line = lineForDb; // Store the raw line value
+      schedule.line = lineForDb;
       schedule.buyer_short_name = schedule.editedBuyerShortName;
       schedule.style_no = schedule.editedStyleNo;
       schedule.id_registrasi = newIdRegistrasi;
       schedule.factory = payload.factory;
+      schedule.number_of_mp = payload.number_of_mp;
+      schedule.start_date = formattedStartDate; // Use formatted date for display
       schedule.isEditing = false;
 
       // Clean up temporary edit fields
@@ -917,6 +947,8 @@ const saveInlineEdit = async (schedule) => {
       delete schedule.editedLine;
       delete schedule.editedBuyerShortName;
       delete schedule.editedStyleNo;
+      delete schedule.editedNumberOfMp;
+      delete schedule.editedStartDate;
 
       await fetchSchedules();
     } else {
@@ -924,6 +956,9 @@ const saveInlineEdit = async (schedule) => {
     }
   } catch (error) {
     console.error("Error updating schedule:", error);
+    if (error.response?.data) {
+      console.error("Server response:", error.response.data);
+    }
     toast.error("Terjadi kesalahan saat memperbarui line schedule");
   }
 };
@@ -1284,6 +1319,13 @@ const startInlineEdit = (schedule) => {
   schedule.editedLine = schedule.line;
   schedule.editedBuyerShortName = schedule.buyer_short_name;
   schedule.editedStyleNo = schedule.style_no;
+  schedule.editedNumberOfMp = parseInt(schedule.number_of_mp);
+
+  // Ensure proper date format for editing
+  const startDate = schedule.start_date
+    ? new Date(schedule.start_date)
+    : new Date();
+  schedule.editedStartDate = startDate.toISOString().split("T")[0];
 };
 
 const cancelInlineEdit = (schedule) => {
@@ -1292,6 +1334,8 @@ const cancelInlineEdit = (schedule) => {
   delete schedule.editedLine;
   delete schedule.editedBuyerShortName;
   delete schedule.editedStyleNo;
+  delete schedule.editedNumberOfMp;
+  delete schedule.editedStartDate;
 };
 
 const handleTypeChange = (schedule) => {
