@@ -33,7 +33,7 @@ func NewDepartmentModel(db *sql.DB) *DepartmentModel {
 
 // Create creates a new department
 func (m *DepartmentModel) Create(dept *DepartmentRequest) (*Department, error) {
-	query := `INSERT INTO departments (DEPT_SHORT_NAME, DEPT_LONG_NAME) VALUES (?, ?)`
+	query := `INSERT INTO hs_mst_departement (DEPT_SHORT_NAME, DEPT_LONG_NAME) VALUES (?, ?)`
 	fmt.Printf("Executing query: %s with values: %v, %v\n", query, dept.ShortName, dept.LongName) // Add logging
 
 	result, err := m.DB.Exec(query, dept.ShortName, dept.LongName)
@@ -57,7 +57,7 @@ func (m *DepartmentModel) Create(dept *DepartmentRequest) (*Department, error) {
 // GetByShortName gets department by short name
 func (m *DepartmentModel) GetByShortName(shortName string) (*Department, error) {
 	query := `SELECT DEPT_SHORT_NAME, DEPT_LONG_NAME, DELETE_STATUS, created_at, updated_at
-              FROM departments
+              FROM hs_mst_departement
               WHERE DEPT_SHORT_NAME = ?`
 	fmt.Printf("Executing query: %s with value: %v\n", query, shortName) // Add logging
 
@@ -75,16 +75,16 @@ func (m *DepartmentModel) GetByShortName(shortName string) (*Department, error) 
 	return &dept, nil
 }
 
-// GetAll gets all departments
+// GetAll gets all hs_mst_departement
 func (m *DepartmentModel) GetAll() ([]*Department, error) {
     query := `
         SELECT DEPT_SHORT_NAME, DEPT_LONG_NAME, DELETE_STATUS, created_at, updated_at 
-        FROM departments 
+        FROM hs_mst_departement 
         ORDER BY created_at DESC
     `
     rows, err := m.DB.Query(query)
     if err != nil {
-        return nil, fmt.Errorf("failed to get departments: %v", err)
+        return nil, fmt.Errorf("failed to get hs_mst_departement: %v", err)
     }
     defer rows.Close()
 
@@ -113,7 +113,7 @@ func (m *DepartmentModel) GetAll() ([]*Department, error) {
 
 // Update updates department information
 func (m *DepartmentModel) Update(shortName string, dept *DepartmentRequest) (*Department, error) {
-	query := `UPDATE departments SET DEPT_LONG_NAME = ?, updated_at = CURRENT_TIMESTAMP WHERE DEPT_SHORT_NAME = ?`
+	query := `UPDATE hs_mst_departement SET DEPT_LONG_NAME = ?, updated_at = CURRENT_TIMESTAMP WHERE DEPT_SHORT_NAME = ?`
 	result, err := m.DB.Exec(query, dept.LongName, shortName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update department: %v", err)
@@ -133,7 +133,7 @@ func (m *DepartmentModel) Update(shortName string, dept *DepartmentRequest) (*De
 
 // Delete soft deletes department by short name
 func (m *DepartmentModel) Delete(shortName string) error {
-	query := `UPDATE departments SET DELETE_STATUS = 1, updated_at = CURRENT_TIMESTAMP WHERE DEPT_SHORT_NAME = ?`
+	query := `UPDATE hs_mst_departement SET DELETE_STATUS = 1, updated_at = CURRENT_TIMESTAMP WHERE DEPT_SHORT_NAME = ?`
 	result, err := m.DB.Exec(query, shortName)
 	if err != nil {
 		return fmt.Errorf("failed to delete department: %v", err)
@@ -153,7 +153,7 @@ func (m *DepartmentModel) Delete(shortName string) error {
 
 // Activate reactivates a soft-deleted department
 func (m *DepartmentModel) Activate(shortName string) error {
-	query := `UPDATE departments SET DELETE_STATUS = 0, updated_at = CURRENT_TIMESTAMP WHERE DEPT_SHORT_NAME = ?`
+	query := `UPDATE hs_mst_departement SET DELETE_STATUS = 0, updated_at = CURRENT_TIMESTAMP WHERE DEPT_SHORT_NAME = ?`
 	result, err := m.DB.Exec(query, shortName)
 	if err != nil {
 		return fmt.Errorf("failed to activate department: %v", err)
@@ -173,7 +173,7 @@ func (m *DepartmentModel) Activate(shortName string) error {
 
 // HardDelete permanently deletes department from database
 func (m *DepartmentModel) HardDelete(shortName string) error {
-    query := `DELETE FROM departments WHERE DEPT_SHORT_NAME = ?`
+    query := `DELETE FROM hs_mst_departement WHERE DEPT_SHORT_NAME = ?`
     result, err := m.DB.Exec(query, shortName)
     if err != nil {
         return fmt.Errorf("failed to delete department: %v", err)

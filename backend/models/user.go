@@ -53,7 +53,7 @@ func NewUserModel(db *sql.DB) *UserModel {
 
 // CheckNIKInEmployees checks if NIK exists in employees table
 func (m *UserModel) CheckNIKInEmployees(nik string) (bool, error) {
-	query := `SELECT COUNT(*) FROM employees WHERE NIK = ? AND DELETE_STATUS = 0`
+	query := `SELECT COUNT(*) FROM hs_hrd_employee WHERE NIK = ? AND DELETE_STATUS = 0`
 	var count int
 	err := m.DB.QueryRow(query, nik).Scan(&count)
 	if err != nil {
@@ -267,7 +267,7 @@ func (u *User) ToResponse() *UserResponse {
 func (m *UserModel) GetAvailableEmployees() ([]*Employee, error) {
 	query := `
 		SELECT e.NIK, e.NAME as Name 
-		FROM employees e 
+		FROM hs_hrd_employee e 
 		LEFT JOIN hs_wsb_user u ON e.NIK = u.NIK 
 		WHERE u.NIK IS NULL AND e.DELETE_STATUS = 0
 		ORDER BY e.NIK

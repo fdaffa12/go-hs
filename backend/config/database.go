@@ -22,11 +22,11 @@ type DatabaseConfig struct {
 // GetDatabaseConfig returns database configuration from environment variables
 func GetDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
-		Host:     getEnv("DB_HOST", "localhost"),
+		Host:     getEnv("DB_HOST", "192.168.1.30"),
 		Port:     getEnv("DB_PORT", "3306"),
-		User:     getEnv("DB_USER", "root"),
-		Password: getEnv("DB_PASSWORD", ""),
-		DBName:   getEnv("DB_NAME", "cors_auth_db"),
+		User:     getEnv("DB_USER", "laravel"),
+		Password: getEnv("DB_PASSWORD", "laravel"),
+		DBName:   getEnv("DB_NAME", "handsome_smart_button"),
 	}
 }
 
@@ -114,9 +114,9 @@ func createTables() error {
 		return fmt.Errorf("failed to create users table: %v", err)
 	}
 
-	// Add departments table
+	// Add hs_mst_departement table
 	departmentTableSQL := `
-	CREATE TABLE IF NOT EXISTS departments (
+	CREATE TABLE IF NOT EXISTS hs_mst_departement (
 		DEPT_SHORT_NAME VARCHAR(5) PRIMARY KEY,
 		DEPT_LONG_NAME VARCHAR(50) NOT NULL,
 		DELETE_STATUS BOOLEAN DEFAULT FALSE,
@@ -127,12 +127,12 @@ func createTables() error {
 
 	_, err = db.Exec(departmentTableSQL)
 	if err != nil {
-		return fmt.Errorf("failed to create departments table: %v", err)
+		return fmt.Errorf("failed to create hs_mst_departement table: %v", err)
 	}
 
-	// Add employees table
+	// Add hs_hrd_employee table
 	employeeTableSQL := `
-	CREATE TABLE IF NOT EXISTS employees (
+	CREATE TABLE IF NOT EXISTS hs_hrd_employee (
 		NIK VARCHAR(10) PRIMARY KEY,
 		NAME VARCHAR(22) NOT NULL,
 		DEPT_SHORT_NAME VARCHAR(5) NOT NULL,
@@ -144,13 +144,13 @@ func createTables() error {
 		DELETE_STATUS TINYINT(1) NOT NULL DEFAULT 0,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		FOREIGN KEY (DEPT_SHORT_NAME) REFERENCES departments(DEPT_SHORT_NAME)
+		FOREIGN KEY (DEPT_SHORT_NAME) REFERENCES hs_mst_departement(DEPT_SHORT_NAME)
 	);
 	`
 
 	_, err = db.Exec(employeeTableSQL)
 	if err != nil {
-		return fmt.Errorf("failed to create employees table: %v", err)
+		return fmt.Errorf("failed to create hs_hrd_employee table: %v", err)
 	}
 
 	// Add profile_picture column if it doesn't exist (for existing databases)

@@ -48,7 +48,7 @@ func NewEmployeeModel(db *sql.DB) *EmployeeModel {
 // Create creates a new employee
 func (m *EmployeeModel) Create(emp *EmployeeRequest) (*Employee, error) {
 	query := `
-		INSERT INTO employees (
+		INSERT INTO hs_hrd_employee (
 			NIK, NAME, DEPT_SHORT_NAME, ENTERANCE_DATE, 
 			TITLE, GENDER, RFID_ID, WORKING_AREA, DELETE_STATUS
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
@@ -93,7 +93,7 @@ func (m *EmployeeModel) GetByNIK(nik string) (*Employee, error) {
 			e.TITLE, e.GENDER, e.RFID_ID, e.WORKING_AREA, 
 			e.DELETE_STATUS, e.created_at, e.updated_at,
 			COALESCE(d.DEPT_LONG_NAME, '') as DEPT_LONG_NAME
-		FROM employees e
+		FROM hs_hrd_employee e
 		LEFT JOIN departments d ON e.DEPT_SHORT_NAME = d.DEPT_SHORT_NAME
 		WHERE e.NIK = ?
 	`
@@ -129,22 +129,22 @@ func (m *EmployeeModel) GetByNIK(nik string) (*Employee, error) {
 	return &emp, nil
 }
 
-// GetAll gets all employees with department names
+// GetAll gets all hs_hrd_employee with department names
 func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 	query := `
 		SELECT 
 			e.NIK, e.NAME, e.DEPT_SHORT_NAME, e.ENTERANCE_DATE, 
 			e.TITLE, e.GENDER, e.RFID_ID, e.WORKING_AREA, 
 			e.DELETE_STATUS, e.created_at, e.updated_at,
-			d.DEPT_LONG_NAME
-		FROM employees e
+			COALESCE(d.DEPT_LONG_NAME, '') as DEPT_LONG_NAME
+		FROM hs_hrd_employee e
 		LEFT JOIN departments d ON e.DEPT_SHORT_NAME = d.DEPT_SHORT_NAME
 		ORDER BY e.created_at DESC
 	`
 
 	rows, err := m.DB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employees: %v", err)
+		return nil, fmt.Errorf("failed to get hs_hrd_employee: %v", err)
 	}
 	defer rows.Close()
 
@@ -152,6 +152,7 @@ func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 	for rows.Next() {
 		var emp Employee
 		var rfidID sql.NullString
+		var deptLongName sql.NullString
 		err := rows.Scan(
 			&emp.NIK,
 			&emp.Name,
@@ -164,7 +165,7 @@ func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 			&emp.DeleteStatus,
 			&emp.CreatedAt,
 			&emp.UpdatedAt,
-			&emp.DeptLongName,
+			&deptLongName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan employee: %v", err)
@@ -174,11 +175,13 @@ func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 			emp.RfidID = &rfidID.String
 		}
 
+		emp.DeptLongName = deptLongName.String // Will be empty string if NULL
+
 		employees = append(employees, &emp)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate employees: %v", err)
+		return nil, fmt.Errorf("failed to iterate hs_hrd_employee: %v", err)
 	}
 
 	return employees, nil
@@ -187,7 +190,7 @@ func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 // Update updates employee information
 func (m *EmployeeModel) Update(nik string, emp *EmployeeRequest) (*Employee, error) {
 	query := `
-		UPDATE employees 
+		UPDATE hs_hrd_employee 
 		SET 
 			NAME = ?, 
 			DEPT_SHORT_NAME = ?, 
@@ -229,7 +232,7 @@ func (m *EmployeeModel) Update(nik string, emp *EmployeeRequest) (*Employee, err
 
 // Delete soft deletes employee by NIK
 func (m *EmployeeModel) Delete(nik string) error {
-	query := `UPDATE employees SET DELETE_STATUS = 1, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
+	query := `UPDATE hs_hrd_employee SET DELETE_STATUS = 1, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
 	result, err := m.DB.Exec(query, nik)
 	if err != nil {
 		return fmt.Errorf("failed to delete employee: %v", err)
@@ -249,7 +252,7 @@ func (m *EmployeeModel) Delete(nik string) error {
 
 // HardDelete permanently deletes employee from database
 func (m *EmployeeModel) HardDelete(nik string) error {
-	query := `DELETE FROM employees WHERE NIK = ?`
+	query := `DELETE FROM hs_hrd_employee WHERE NIK = ?`
 	result, err := m.DB.Exec(query, nik)
 	if err != nil {
 		return fmt.Errorf("failed to delete employee: %v", err)
@@ -269,7 +272,7 @@ func (m *EmployeeModel) HardDelete(nik string) error {
 
 // Activate reactivates a soft-deleted employee
 func (m *EmployeeModel) Activate(nik string) error {
-	query := `UPDATE employees SET DELETE_STATUS = 0, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
+	query := `UPDATE hs_hrd_employee SET DELETE_STATUS = 0, updated_at = CURRENT_TIMESTAMP WHERE NIK = ?`
 	result, err := m.DB.Exec(query, nik)
 	if err != nil {
 		return fmt.Errorf("failed to activate employee: %v", err)
