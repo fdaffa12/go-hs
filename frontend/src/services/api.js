@@ -268,9 +268,13 @@ export const userService = {
 
 // Department Service
 export const departmentService = {
-  getAllDepartments: async () => {
+  getAllDepartments: async (page = 1, pageSize = 10, search = "") => {
     try {
-      const response = await api.get("/departments");
+      const response = await api.get(
+        `/departments?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(
+          search
+        )}`
+      );
       return response.data;
     } catch (error) {
       throw (
@@ -342,9 +346,13 @@ export const departmentService = {
 
 // Employee Service
 export const employeeService = {
-  getAllEmployees: async () => {
+  getAllEmployees: async (page = 1, pageSize = 10, search = "") => {
     try {
-      const response = await api.get("/employees");
+      const response = await api.get(
+        `/employees?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(
+          search
+        )}`
+      );
       return response.data;
     } catch (error) {
       throw (

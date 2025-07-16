@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/username/backend/models"
@@ -35,7 +36,26 @@ func (dc *DepartmentController) GetAllDepartments(w http.ResponseWriter, r *http
 		return
 	}
 
-	departments, err := dc.DepartmentModel.GetAll()
+	// Get pagination parameters from query string
+	page := 1
+	pageSize := 10 // default page size
+
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			pageSize = ps
+		}
+	}
+
+	// Get search parameter
+	search := r.URL.Query().Get("search")
+
+	departments, err := dc.DepartmentModel.GetAll(page, pageSize, search)
 	if err != nil {
 		fmt.Printf("Error getting departments: %v\n", err) // Add logging
 		response := Response{

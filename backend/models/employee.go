@@ -35,6 +35,15 @@ type EmployeeRequest struct {
 	WorkingArea   int    `json:"working_area"`
 }
 
+// PaginatedEmployees represents paginated response
+type PaginatedEmployees struct {
+	Employees   []*Employee `json:"employees"`
+	TotalItems  int        `json:"total_items"`
+	TotalPages  int        `json:"total_pages"`
+	CurrentPage int        `json:"current_page"`
+	PageSize    int        `json:"page_size"`
+}
+
 // EmployeeModel handles employee database operations
 type EmployeeModel struct {
 	DB *sql.DB
@@ -129,8 +138,33 @@ func (m *EmployeeModel) GetByNIK(nik string) (*Employee, error) {
 	return &emp, nil
 }
 
-// GetAll gets all hs_hrd_employee with department names
-func (m *EmployeeModel) GetAll() ([]*Employee, error) {
+// GetAll gets all hs_hrd_employee with department names and pagination
+func (m *EmployeeModel) GetAll(page, pageSize int, search string) (*PaginatedEmployees, error) {
+	// Calculate offset
+	offset := (page - 1) * pageSize
+
+	// Base conditions for search
+	searchCondition := ""
+	searchArgs := []interface{}{}
+
+	if search != "" {
+		searchCondition = "WHERE (e.NIK LIKE ? OR e.NAME LIKE ? OR e.TITLE LIKE ?)"
+		searchPattern := "%" + search + "%"
+		searchArgs = append(searchArgs, searchPattern, searchPattern, searchPattern)
+	}
+
+	// Get total count first with search condition
+	countQuery := `SELECT COUNT(*) FROM hs_hrd_employee e ` + searchCondition
+	var totalItems int
+	err := m.DB.QueryRow(countQuery, searchArgs...).Scan(&totalItems)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get total count: %v", err)
+	}
+
+	// Calculate total pages
+	totalPages := (totalItems + pageSize - 1) / pageSize
+
+	// Main query with pagination and search
 	query := `
 		SELECT 
 			e.NIK, e.NAME, e.DEPT_SHORT_NAME, e.ENTERANCE_DATE, 
@@ -139,10 +173,15 @@ func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 			COALESCE(d.DEPT_LONG_NAME, '') as DEPT_LONG_NAME
 		FROM hs_hrd_employee e
 		LEFT JOIN departments d ON e.DEPT_SHORT_NAME = d.DEPT_SHORT_NAME
+		` + searchCondition + `
 		ORDER BY e.created_at DESC
+		LIMIT ? OFFSET ?
 	`
 
-	rows, err := m.DB.Query(query)
+	// Add pagination parameters to search args
+	searchArgs = append(searchArgs, pageSize, offset)
+
+	rows, err := m.DB.Query(query, searchArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hs_hrd_employee: %v", err)
 	}
@@ -175,7 +214,7 @@ func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 			emp.RfidID = &rfidID.String
 		}
 
-		emp.DeptLongName = deptLongName.String // Will be empty string if NULL
+		emp.DeptLongName = deptLongName.String
 
 		employees = append(employees, &emp)
 	}
@@ -184,7 +223,13 @@ func (m *EmployeeModel) GetAll() ([]*Employee, error) {
 		return nil, fmt.Errorf("failed to iterate hs_hrd_employee: %v", err)
 	}
 
-	return employees, nil
+	return &PaginatedEmployees{
+		Employees:   employees,
+		TotalItems:  totalItems,
+		TotalPages:  totalPages,
+		CurrentPage: page,
+		PageSize:    pageSize,
+	}, nil
 }
 
 // Update updates employee information

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/username/backend/models"
@@ -35,7 +36,26 @@ func (ec *EmployeeController) GetAllEmployees(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	employees, err := ec.EmployeeModel.GetAll()
+	// Get pagination parameters from query string
+	page := 1
+	pageSize := 10 // default page size
+
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			pageSize = ps
+		}
+	}
+
+	// Get search parameter
+	search := r.URL.Query().Get("search")
+
+	result, err := ec.EmployeeModel.GetAll(page, pageSize, search)
 	if err != nil {
 		fmt.Printf("Error getting employees: %v\n", err)
 		response := Response{
@@ -50,7 +70,7 @@ func (ec *EmployeeController) GetAllEmployees(w http.ResponseWriter, r *http.Req
 	response := Response{
 		Success: true,
 		Message: "Data karyawan berhasil diambil",
-		Data:    employees,
+		Data:    result,
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)

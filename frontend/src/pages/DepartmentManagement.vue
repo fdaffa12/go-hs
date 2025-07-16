@@ -89,6 +89,25 @@
         </div>
       </div>
 
+      <!-- Add page size selector -->
+      <div
+        class="mt-4 flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm"
+      >
+        <div class="flex items-center">
+          <span class="text-sm text-gray-700 mr-2">Tampilkan:</span>
+          <select
+            v-model="pageSize"
+            @change="handlePageSizeChange"
+            class="border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option v-for="size in pageSizeOptions" :key="size" :value="size">
+              {{ size === -1 ? "Semua" : size }}
+            </option>
+          </select>
+          <span class="text-sm text-gray-700 ml-2">per halaman</span>
+        </div>
+      </div>
+
       <!-- Departments Table -->
       <div
         class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
@@ -133,7 +152,7 @@
                   Memuat departemen...
                 </td>
               </tr>
-              <tr v-else-if="filteredDepartments.length === 0">
+              <tr v-else-if="departments.length === 0">
                 <td
                   colspan="5"
                   class="px-3 sm:px-6 py-3 sm:py-4 text-center text-gray-500 text-sm"
@@ -143,7 +162,7 @@
               </tr>
               <tr
                 v-else
-                v-for="dept in filteredDepartments"
+                v-for="dept in departments"
                 :key="dept.short_name"
                 class="hover:bg-gray-50"
               >
@@ -260,6 +279,115 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- After the table -->
+      <div
+        class="mt-4 flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6"
+      >
+        <div class="flex justify-between flex-1 sm:hidden">
+          <button
+            @click="prevPage"
+            :disabled="currentPage === 1"
+            class="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
+          >
+            Previous
+          </button>
+          <button
+            @click="nextPage"
+            :disabled="currentPage === totalPages"
+            class="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            :class="{
+              'opacity-50 cursor-not-allowed': currentPage === totalPages,
+            }"
+          >
+            Next
+          </button>
+        </div>
+        <div
+          class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between"
+        >
+          <div>
+            <p class="text-sm text-gray-700">
+              Showing
+              <span class="font-medium">{{
+                (currentPage - 1) * pageSize + 1
+              }}</span>
+              to
+              <span class="font-medium">{{
+                Math.min(currentPage * pageSize, totalItems)
+              }}</span>
+              of
+              <span class="font-medium">{{ totalItems }}</span>
+              results
+            </p>
+          </div>
+          <div>
+            <nav
+              class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+              aria-label="Pagination"
+            >
+              <button
+                @click="prevPage"
+                :disabled="currentPage === 1"
+                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
+              >
+                <span class="sr-only">Previous</span>
+                <svg
+                  class="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                v-for="page in displayedPages"
+                :key="page"
+                @click="goToPage(page)"
+                :class="[
+                  page === currentPage
+                    ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                    : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50',
+                  'relative inline-flex items-center px-4 py-2 border text-sm font-medium',
+                ]"
+              >
+                {{ page }}
+              </button>
+              <button
+                @click="nextPage"
+                :disabled="currentPage === totalPages"
+                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                :class="{
+                  'opacity-50 cursor-not-allowed': currentPage === totalPages,
+                }"
+              >
+                <span class="sr-only">Next</span>
+                <svg
+                  class="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </nav>
+          </div>
         </div>
       </div>
 
@@ -439,7 +567,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "../stores/auth";
 import { departmentService } from "../services/api";
@@ -453,6 +581,13 @@ const departments = ref([]);
 const loading = ref(false);
 const submitting = ref(false);
 const searchQuery = ref("");
+
+// Pagination and page size options
+const pageSizeOptions = [10, 20, 50, 100, -1]; // -1 represents "All"
+const pageSize = ref(10);
+const currentPage = ref(1);
+const totalItems = ref(0);
+const totalPages = ref(0);
 
 // Modal states
 const showCreateModal = ref(false);
@@ -471,24 +606,92 @@ const departmentToDelete = ref(null);
 const departmentToHardDelete = ref(null);
 
 // Computed
-const filteredDepartments = computed(() => {
-  if (!searchQuery.value) return departments.value;
+const filteredDepartments = computed(() => departments.value);
 
-  const query = searchQuery.value.toLowerCase();
-  return departments.value.filter(
-    (dept) =>
-      dept.short_name.toLowerCase().includes(query) ||
-      dept.long_name.toLowerCase().includes(query)
-  );
+// Add computed property for displayed pages
+const displayedPages = computed(() => {
+  const delta = 2;
+  const range = [];
+  const rangeWithDots = [];
+  let l;
+
+  for (let i = 1; i <= totalPages.value; i++) {
+    if (
+      i === 1 ||
+      i === totalPages.value ||
+      (i >= currentPage.value - delta && i <= currentPage.value + delta)
+    ) {
+      range.push(i);
+    }
+  }
+
+  for (let i of range) {
+    if (l) {
+      if (i - l === 2) {
+        rangeWithDots.push(l + 1);
+      } else if (i - l !== 1) {
+        rangeWithDots.push("...");
+      }
+    }
+    rangeWithDots.push(i);
+    l = i;
+  }
+
+  return rangeWithDots;
 });
 
+// Add debounced search method
+const debouncedSearch = ref(null);
+
+const handleSearch = () => {
+  if (debouncedSearch.value) {
+    clearTimeout(debouncedSearch.value);
+  }
+  debouncedSearch.value = setTimeout(() => {
+    currentPage.value = 1; // Reset to first page when searching
+    fetchDepartments();
+  }, 300);
+};
+
 // Methods
+const handlePageSizeChange = async () => {
+  currentPage.value = 1; // Reset to first page when changing page size
+  if (pageSize.value === -1) {
+    // If "All" is selected, get total count first
+    try {
+      const response = await departmentService.getAllDepartments(1, 1);
+      if (response.success) {
+        pageSize.value = response.data.total_items;
+      }
+    } catch (error) {
+      console.error("Error getting total count:", error);
+      pageSize.value = 100; // Fallback to 100 if error
+    }
+  }
+  fetchDepartments();
+};
+
+// Watch for search query changes
+watch(searchQuery, () => {
+  handleSearch();
+});
+
 const fetchDepartments = async () => {
   loading.value = true;
   try {
-    const data = await departmentService.getAllDepartments();
+    const data = await departmentService.getAllDepartments(
+      currentPage.value,
+      pageSize.value === -1 ? 999999 : pageSize.value,
+      searchQuery.value
+    );
     if (data.success) {
-      departments.value = data.data || [];
+      // Update pagination data
+      totalItems.value = data.data.total_items;
+      totalPages.value = data.data.total_pages;
+      currentPage.value = data.data.current_page;
+      pageSize.value = data.data.page_size;
+
+      departments.value = data.data.departments || [];
     } else {
       console.error("Failed to fetch departments:", data.message);
       toast.error("Gagal memuat data departemen: " + data.message);
@@ -498,6 +701,28 @@ const fetchDepartments = async () => {
     toast.error("Terjadi kesalahan saat memuat data departemen");
   } finally {
     loading.value = false;
+  }
+};
+
+// Add pagination methods
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+    fetchDepartments();
+  }
+};
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+    fetchDepartments();
+  }
+};
+
+const goToPage = (page) => {
+  if (page !== "..." && page !== currentPage.value) {
+    currentPage.value = page;
+    fetchDepartments();
   }
 };
 

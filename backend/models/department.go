@@ -15,6 +15,15 @@ type Department struct {
 	UpdatedAt     *time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// PaginatedDepartments represents paginated response
+type PaginatedDepartments struct {
+	Departments  []*Department `json:"departments"`
+	TotalItems   int          `json:"total_items"`
+	TotalPages   int          `json:"total_pages"`
+	CurrentPage  int          `json:"current_page"`
+	PageSize     int          `json:"page_size"`
+}
+
 // DepartmentRequest represents request payload for department operations
 type DepartmentRequest struct {
 	ShortName string `json:"short_name"`
@@ -75,14 +84,41 @@ func (m *DepartmentModel) GetByShortName(shortName string) (*Department, error) 
 	return &dept, nil
 }
 
-// GetAll gets all hs_mst_departement
-func (m *DepartmentModel) GetAll() ([]*Department, error) {
+// GetAll gets all hs_mst_departement with pagination and search
+func (m *DepartmentModel) GetAll(page, pageSize int, search string) (*PaginatedDepartments, error) {
+    // Base conditions for search
+    searchCondition := ""
+    searchArgs := []interface{}{}
+    
+    if search != "" {
+        searchCondition = "WHERE (DEPT_SHORT_NAME LIKE ? OR DEPT_LONG_NAME LIKE ?)"
+        searchPattern := "%" + search + "%"
+        searchArgs = append(searchArgs, searchPattern, searchPattern)
+    }
+
+    // Get total count first with search condition
+    var totalItems int
+    countQuery := `SELECT COUNT(*) FROM hs_mst_departement ` + searchCondition
+    err := m.DB.QueryRow(countQuery, searchArgs...).Scan(&totalItems)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get total count: %v", err)
+    }
+
+    // Calculate total pages
+    totalPages := (totalItems + pageSize - 1) / pageSize
+
+    // Main query with pagination and search
     query := `
         SELECT DEPT_SHORT_NAME, DEPT_LONG_NAME, DELETE_STATUS, created_at, updated_at 
         FROM hs_mst_departement 
+        ` + searchCondition + `
         ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
     `
-    rows, err := m.DB.Query(query)
+    // Add pagination parameters to search args
+    searchArgs = append(searchArgs, pageSize, (page-1)*pageSize)
+    
+    rows, err := m.DB.Query(query, searchArgs...)
     if err != nil {
         return nil, fmt.Errorf("failed to get hs_mst_departement: %v", err)
     }
@@ -108,7 +144,13 @@ func (m *DepartmentModel) GetAll() ([]*Department, error) {
         return nil, fmt.Errorf("failed to iterate departments: %v", err)
     }
 
-    return departments, nil
+    return &PaginatedDepartments{
+        Departments:  departments,
+        TotalItems:   totalItems,
+        TotalPages:   totalPages,
+        CurrentPage:  page,
+        PageSize:     pageSize,
+    }, nil
 }
 
 // Update updates department information
