@@ -184,16 +184,14 @@
                   </select>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <select
-                    v-if="row.type === 'assembly'"
-                    v-model="row.line"
-                    class="form-select w-full"
-                  >
-                    <option value="">Pilih Line</option>
-                    <option v-for="line in lines" :key="line" :value="line">
-                      {{ line }}
-                    </option>
-                  </select>
+                  <div v-if="row.type === 'assembly'">
+                    <select v-model="row.line" class="form-select w-full">
+                      <option value="">Pilih Line</option>
+                      <option v-for="line in lines" :key="line" :value="line">
+                        {{ line }}
+                      </option>
+                    </select>
+                  </div>
                   <input
                     v-else
                     v-model="row.line"
@@ -333,17 +331,89 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {{ schedule.id_registrasi }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ schedule.type }}
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div v-if="schedule.isEditing">
+                    <select
+                      v-model="schedule.editedType"
+                      class="form-select w-full"
+                      @change="handleTypeChange(schedule)"
+                    >
+                      <option value="assembly">Assembly</option>
+                      <option value="component">Component</option>
+                    </select>
+                  </div>
+                  <div v-else class="text-sm text-gray-900">
+                    {{ schedule.type }}
+                  </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ schedule.line }}
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div v-if="schedule.isEditing">
+                    <div v-if="schedule.editedType === 'assembly'">
+                      <select
+                        v-model="schedule.editedLine"
+                        class="form-select w-full"
+                      >
+                        <option value="">Pilih Line</option>
+                        <option v-for="line in lines" :key="line" :value="line">
+                          {{ line }}
+                        </option>
+                      </select>
+                    </div>
+                    <input
+                      v-else
+                      v-model="schedule.editedLine"
+                      class="form-input w-full"
+                      disabled
+                      value="AREA"
+                    />
+                  </div>
+                  <div v-else class="text-sm text-gray-900">
+                    {{ schedule.type === "component" ? "AREA" : schedule.line }}
+                  </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ schedule.buyer_short_name }}
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div v-if="schedule.isEditing">
+                    <select
+                      v-model="schedule.editedBuyerShortName"
+                      class="form-select w-full"
+                      @change="handleBuyerChangeInline(schedule)"
+                    >
+                      <option value="">Pilih Buyer</option>
+                      <option
+                        v-for="buyer in buyers"
+                        :key="buyer.short_name"
+                        :value="buyer.short_name"
+                      >
+                        {{ buyer.long_name }}
+                      </option>
+                    </select>
+                  </div>
+                  <div v-else class="text-sm text-gray-900">
+                    {{ schedule.buyer_short_name }}
+                  </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ schedule.style_no }}
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div v-if="schedule.isEditing">
+                    <select
+                      v-model="schedule.editedStyleNo"
+                      class="form-select w-full"
+                      :disabled="!schedule.editedBuyerShortName"
+                    >
+                      <option value="">Pilih Style</option>
+                      <option
+                        v-for="style in getFilteredStyles(
+                          schedule.editedBuyerShortName
+                        )"
+                        :key="style.style_no"
+                        :value="style.style_no"
+                      >
+                        {{ style.style_no }}
+                      </option>
+                    </select>
+                  </div>
+                  <div v-else class="text-sm text-gray-900">
+                    {{ schedule.style_no }}
+                  </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {{ schedule.number_of_mp }}
@@ -370,85 +440,127 @@
                   class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
                 >
                   <div class="flex justify-end space-x-2">
-                    <button
-                      v-if="!schedule.delete_status"
-                      @click="editSchedule(schedule)"
-                      class="text-blue-600 hover:text-blue-900"
-                      title="Edit"
-                    >
-                      <svg
-                        class="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                    <template v-if="schedule.isEditing">
+                      <button
+                        @click="saveInlineEdit(schedule)"
+                        class="text-green-600 hover:text-green-900"
+                        title="Simpan"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="!schedule.delete_status"
-                      @click="showSoftDeleteConfirm(schedule)"
-                      class="text-yellow-600 hover:text-yellow-900"
-                      title="Non-aktifkan"
-                    >
-                      <svg
-                        class="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        @click="cancelInlineEdit(schedule)"
+                        class="text-red-600 hover:text-red-900"
+                        title="Batal"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="schedule.delete_status"
-                      @click="activateSchedule(schedule)"
-                      class="text-green-600 hover:text-green-900"
-                      title="Activate"
-                    >
-                      <svg
-                        class="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </template>
+                    <template v-else>
+                      <button
+                        v-if="!schedule.delete_status"
+                        @click="startInlineEdit(schedule)"
+                        class="text-blue-600 hover:text-blue-900"
+                        title="Edit"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      @click="showHardDeleteConfirm(schedule)"
-                      class="text-red-600 hover:text-red-900"
-                      title="Hapus Permanen"
-                    >
-                      <svg
-                        class="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        v-if="!schedule.delete_status"
+                        @click="showSoftDeleteConfirm(schedule)"
+                        class="text-yellow-600 hover:text-yellow-900"
+                        title="Non-aktifkan"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        v-if="schedule.delete_status"
+                        @click="activateSchedule(schedule)"
+                        class="text-green-600 hover:text-green-900"
+                        title="Activate"
+                      >
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        @click="showHardDeleteConfirm(schedule)"
+                        class="text-red-600 hover:text-red-900"
+                        title="Hapus Permanen"
+                      >
+                        <svg
+                          class="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </template>
                   </div>
                 </td>
               </tr>
@@ -684,8 +796,8 @@ const totalItems = ref(0);
 const totalPages = ref(0);
 const newRows = ref([]); // Change to array for multiple rows
 
-// Available lines for assembly
-const lines = ref(["LINE 1", "LINE 2", "LINE 3", "LINE 4", "LINE 5"]);
+// Update the lines ref to store just numbers
+const lines = ref(["1", "2", "3", "4", "5"]); // Changed from "LINE 1" etc to just numbers
 
 // Filters
 const filters = ref({
@@ -735,43 +847,122 @@ const displayedPages = computed(() => {
   return range;
 });
 
-// In LineScheduleManagement.vue, add these helper functions:
-const mapTypeToFactory = (type) => {
+// Update the mapFactoryToType function to use line value instead of factory
+const mapFactoryToType = (line) => {
+  return line === "AREA" ? "component" : "assembly";
+};
+
+// Update the mapTypeToFactory function
+const mapTypeToFactory = (type, currentFactory = null) => {
+  // If we have a current factory, prioritize it
+  if (currentFactory) {
+    return currentFactory;
+  }
+
+  // Fallback to default mapping
   switch (type) {
     case "component":
       return "F2"; // Use F2 for component area
     case "assembly":
     default:
-      return "F1"; // Default to F1 for assembly
+      return filters.value.factory || "F1"; // Use filter factory or default to F1
   }
 };
 
-const mapFactoryToType = (factory) => {
-  switch (factory) {
-    case "F2": // Assuming F2 is used for component area
-      return "component";
-    default:
-      return "assembly";
+// Update the saveInlineEdit function
+const saveInlineEdit = async (schedule) => {
+  // Format line value for database - keep as is for component, use number for assembly
+  const lineForDb =
+    schedule.editedType === "component" ? "AREA" : schedule.editedLine;
+
+  const newIdRegistrasi = generateRegistrationId(
+    schedule.editedType,
+    lineForDb, // Pass the database format line value
+    schedule.editedStyleNo,
+    schedule.start_date
+  );
+
+  const currentFactory = filters.value.factory || schedule.factory;
+
+  const payload = {
+    id_registrasi: newIdRegistrasi,
+    date: schedule.date,
+    factory: currentFactory,
+    line: lineForDb, // Store raw line value (AREA or number)
+    buyer_short_name: schedule.editedBuyerShortName,
+    style_no: schedule.editedStyleNo,
+    start_date: schedule.start_date,
+    number_of_mp: schedule.number_of_mp,
+    working_day: schedule.working_day,
+  };
+
+  try {
+    const response = await lineScheduleService.updateLineSchedule(
+      schedule.row_id,
+      payload
+    );
+    if (response.success) {
+      toast.success("Line schedule berhasil diperbarui");
+      // Update the schedule with new values
+      schedule.type = schedule.editedType;
+      schedule.line = lineForDb; // Store the raw line value
+      schedule.buyer_short_name = schedule.editedBuyerShortName;
+      schedule.style_no = schedule.editedStyleNo;
+      schedule.id_registrasi = newIdRegistrasi;
+      schedule.factory = payload.factory;
+      schedule.isEditing = false;
+
+      // Clean up temporary edit fields
+      delete schedule.editedType;
+      delete schedule.editedLine;
+      delete schedule.editedBuyerShortName;
+      delete schedule.editedStyleNo;
+
+      await fetchSchedules();
+    } else {
+      toast.error(response.message || "Gagal memperbarui line schedule");
+    }
+  } catch (error) {
+    console.error("Error updating schedule:", error);
+    toast.error("Terjadi kesalahan saat memperbarui line schedule");
   }
 };
 
-// Add generateRegistrationId function
-const generateRegistrationId = (type, line, styleNo, startDate) => {
-  const factory = mapTypeToFactory(type);
+// Update the generateRegistrationId function
+const generateRegistrationId = (
+  type,
+  line,
+  styleNo,
+  startDate,
+  currentFactory = null
+) => {
+  const factory = mapTypeToFactory(type, currentFactory);
   const prefix = type === "component" ? "A0" : "L";
-  const lineValue =
-    type === "component" ? "" : line?.replace("LINE ", "") || "";
-  const formattedDate = startDate ? startDate.replace(/-/g, "") : "";
+
+  // Format line value based on type
+  const lineValue = type === "component" ? "" : line || "";
+
+  // Format date to YYYYMMDD without time
+  let formattedDate = "";
+  if (startDate) {
+    const date =
+      typeof startDate === "string" ? new Date(startDate) : startDate;
+    formattedDate = date.toISOString().split("T")[0].replace(/-/g, "");
+  }
+
   const formattedStyleNo = styleNo || "XXXX";
 
   return `${factory}-${prefix}${lineValue}-${formattedStyleNo}-${formattedDate}`;
 };
 
-// Modify the saveNewRow function:
+// Update the saveNewRow function
 const saveNewRow = async (row, index) => {
+  // Format line value for database
+  const lineForDb = row.type === "component" ? "AREA" : row.line;
+
   row.id_registrasi = generateRegistrationId(
     row.type,
-    row.line,
+    lineForDb, // Pass the database format line value
     row.style_no,
     row.start_date
   );
@@ -780,15 +971,14 @@ const saveNewRow = async (row, index) => {
     return;
   }
 
-  // Format the dates properly
   const startDate = row.start_date ? new Date(row.start_date) : null;
   const currentDate = new Date();
 
   const payload = {
     id_registrasi: row.id_registrasi,
     date: currentDate,
-    factory: mapTypeToFactory(row.type),
-    line: row.line,
+    factory: filters.value.factory || "F2",
+    line: lineForDb, // Store raw line value (AREA or number)
     buyer_short_name: row.buyer_short_name,
     style_no: row.style_no,
     start_date: startDate,
@@ -889,7 +1079,7 @@ const formatDate = (date) => {
 const displayedSchedules = computed(() => {
   return schedules.value.map((schedule) => ({
     ...schedule,
-    type: mapFactoryToType(schedule.factory),
+    type: mapFactoryToType(schedule.line), // Use line to determine type
   }));
 });
 
@@ -945,7 +1135,8 @@ const fetchSchedules = async () => {
       if (response.data?.line_schedules) {
         schedules.value = response.data.line_schedules.map((schedule) => ({
           ...schedule,
-          type: mapFactoryToType(schedule.factory),
+          type: mapFactoryToType(schedule.line), // Use line to determine type
+          isEditing: false,
         }));
         totalItems.value = response.data.total_items;
         totalPages.value = response.data.total_pages;
@@ -1086,6 +1277,42 @@ const confirmActivate = async () => {
   }
 };
 
+// Add new methods for inline editing
+const startInlineEdit = (schedule) => {
+  schedule.isEditing = true;
+  schedule.editedType = schedule.type;
+  schedule.editedLine = schedule.line;
+  schedule.editedBuyerShortName = schedule.buyer_short_name;
+  schedule.editedStyleNo = schedule.style_no;
+};
+
+const cancelInlineEdit = (schedule) => {
+  schedule.isEditing = false;
+  delete schedule.editedType;
+  delete schedule.editedLine;
+  delete schedule.editedBuyerShortName;
+  delete schedule.editedStyleNo;
+};
+
+const handleTypeChange = (schedule) => {
+  if (schedule.editedType === "component") {
+    schedule.editedLine = "AREA";
+  } else {
+    schedule.editedLine = ""; // Reset line when switching to assembly
+  }
+};
+
+const handleBuyerChangeInline = (schedule) => {
+  schedule.editedStyleNo = "";
+};
+
+const getFilteredStyles = (buyerShortName) => {
+  if (!buyerShortName) return [];
+  return styles.value.filter(
+    (style) => style.buyer_short_name === buyerShortName
+  );
+};
+
 // Lifecycle hooks
 onMounted(() => {
   filters.value.date = new Date().toISOString().split("T")[0];
@@ -1103,7 +1330,7 @@ const handleNewRowTypeChange = (row) => {
   if (row.type === "component") {
     row.line = "AREA";
   } else {
-    row.line = "";
+    row.line = ""; // Reset line when switching to assembly
   }
 };
 </script>
