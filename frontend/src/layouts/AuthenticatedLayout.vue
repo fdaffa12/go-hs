@@ -455,61 +455,120 @@
           </div>
         </div>
 
-        <!-- Buyer Management -->
-        <router-link
-          to="/buyers"
-          :class="[
-            'nav-item',
-            { 'nav-item-active': $route.path === '/buyers' },
-            sidebarCollapsed ? 'lg:justify-center lg:px-2' : '',
-          ]"
-          :title="sidebarCollapsed ? 'Buyer Management' : ''"
-        >
-          <svg
-            class="w-5 h-5 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <!-- Order Management Dropdown -->
+        <div class="space-y-1">
+          <button
+            @click="toggleOrderDropdown"
+            :class="[
+              'nav-item w-full',
+              {
+                'nav-item-active':
+                  $route.path === '/buyers' || $route.path === '/styles',
+              },
+              sidebarCollapsed ? 'lg:justify-center lg:px-2' : '',
+            ]"
+            :title="sidebarCollapsed ? 'Order Management' : ''"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-            />
-          </svg>
-          <span v-if="!sidebarCollapsed" class="transition-opacity duration-300"
-            >Manajemen Buyer</span
-          >
-        </router-link>
+            <svg
+              class="w-5 h-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            <span
+              v-if="!sidebarCollapsed"
+              class="flex-1 transition-opacity duration-300"
+              >Order</span
+            >
+            <svg
+              v-if="!sidebarCollapsed"
+              :class="[
+                'w-4 h-4 transition-transform duration-200',
+                { 'rotate-180': orderDropdownOpen },
+              ]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
 
-        <!-- Style Management -->
-        <router-link
-          to="/styles"
-          :class="[
-            'nav-item',
-            { 'nav-item-active': $route.path === '/styles' },
-            sidebarCollapsed ? 'lg:justify-center lg:px-2' : '',
-          ]"
-          :title="sidebarCollapsed ? 'Style Management' : ''"
-        >
-          <svg
-            class="w-5 h-5 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+          <!-- Order Dropdown Items -->
+          <div
+            v-show="orderDropdownOpen || sidebarCollapsed"
+            :class="[
+              'space-y-1',
+              sidebarCollapsed
+                ? 'lg:absolute lg:left-full lg:top-0 lg:w-48 lg:mt-0 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200'
+                : 'pl-4',
+            ]"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
-            />
-          </svg>
-          <span v-if="!sidebarCollapsed" class="transition-opacity duration-300"
-            >Manajemen Style</span
-          >
-        </router-link>
+            <router-link
+              to="/buyers"
+              :class="[
+                'nav-item',
+                { 'nav-item-active': $route.path === '/buyers' },
+                sidebarCollapsed ? 'lg:rounded-none' : '',
+              ]"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+              <span class="transition-opacity duration-300"
+                >Manajemen Buyer</span
+              >
+            </router-link>
+
+            <router-link
+              to="/styles"
+              :class="[
+                'nav-item',
+                { 'nav-item-active': $route.path === '/styles' },
+                sidebarCollapsed ? 'lg:rounded-none' : '',
+              ]"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+                />
+              </svg>
+              <span class="transition-opacity duration-300"
+                >Manajemen Style</span
+              >
+            </router-link>
+          </div>
+        </div>
 
         <!-- Divider -->
         <div class="border-t border-gray-200 my-4"></div>
@@ -661,6 +720,7 @@ const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(false);
 const isLargeScreen = ref(window?.innerWidth >= 1024);
 const employeeDropdownOpen = ref(false);
+const orderDropdownOpen = ref(false);
 
 // Watch window resize
 const handleResize = () => {
@@ -697,6 +757,10 @@ const getProfileImageUrl = (profilePicture) => {
 
 const toggleEmployeeDropdown = () => {
   employeeDropdownOpen.value = !employeeDropdownOpen.value;
+};
+
+const toggleOrderDropdown = () => {
+  orderDropdownOpen.value = !orderDropdownOpen.value;
 };
 
 const handleLogout = () => {
