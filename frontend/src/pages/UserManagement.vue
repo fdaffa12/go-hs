@@ -359,6 +359,16 @@ const closeModal = () => {
   };
 };
 
+// Methods
+const getProfileImageUrl = (profilePicture) => {
+  if (!profilePicture) return null;
+  if (profilePicture.startsWith("http")) {
+    return profilePicture;
+  }
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8081";
+  return `${baseUrl}${profilePicture}`;
+};
+
 const getUserInitials = (name) => {
   return name
     .split(" ")
@@ -752,7 +762,9 @@ const handleSubmit = async () => {
                         v-if="user.profile_picture"
                         class="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-cover bg-center"
                         :style="{
-                          backgroundImage: `url(${user.profile_picture})`,
+                          backgroundImage: `url(${getProfileImageUrl(
+                            user.profile_picture
+                          )})`,
                         }"
                       ></div>
                       <div
