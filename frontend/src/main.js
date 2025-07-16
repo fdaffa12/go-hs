@@ -20,6 +20,7 @@ import DepartmentManagement from "./pages/DepartmentManagement.vue";
 import EmployeeManagement from "./pages/EmployeeManagement.vue";
 import BuyerManagement from "./pages/BuyerManagement.vue";
 import StyleManagement from "./pages/StyleManagement.vue";
+import LineScheduleManagement from "./pages/LineScheduleManagement.vue";
 
 // Define routes
 const routes = [
@@ -48,6 +49,11 @@ const routes = [
   {
     path: "/styles",
     component: StyleManagement,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/line-schedules",
+    component: LineScheduleManagement,
     meta: { requiresAuth: true },
   },
 ];

@@ -16,6 +16,7 @@ type Router struct {
 	EmployeeController   *controllers.EmployeeController
 	BuyerController     *controllers.BuyerController
 	StyleController     *controllers.StyleController
+	LineScheduleController *controllers.LineScheduleController
 }
 
 // NewRouter creates new router instance
@@ -26,6 +27,7 @@ func NewRouter(
 	employeeController *controllers.EmployeeController,
 	buyerController *controllers.BuyerController,
 	styleController *controllers.StyleController,
+	lineScheduleController *controllers.LineScheduleController,
 ) *Router {
 	return &Router{
 		AuthController:       authController,
@@ -34,6 +36,7 @@ func NewRouter(
 		EmployeeController:   employeeController,
 		BuyerController:     buyerController,
 		StyleController:     styleController,
+		LineScheduleController: lineScheduleController,
 	}
 }
 
@@ -70,6 +73,10 @@ func (router *Router) SetupRoutes() *http.ServeMux {
 	// Style management routes (authentication required)
 	mux.HandleFunc("/api/styles", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleStyleRoutes))))
 	mux.HandleFunc("/api/styles/", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleStyleRoutes))))
+
+	// Line Schedule management routes (authentication required)
+	mux.HandleFunc("/api/line-schedules", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleLineScheduleRoutes))))
+	mux.HandleFunc("/api/line-schedules/", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleLineScheduleRoutes))))
 
 	// Public test route (for testing backend connection without auth)
 	mux.HandleFunc("/api/hello", middleware.CORSMiddleware(middleware.LoggingMiddleware(router.AuthController.TestConnection)))
@@ -301,6 +308,50 @@ func (router *Router) handleStyleRoutes(w http.ResponseWriter, r *http.Request) 
 		router.StyleController.UpdateStyle(w, r)
 	case "DELETE":
 		router.StyleController.DeleteStyle(w, r)
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
+	}
+}
+
+// handleLineScheduleRoutes handles dynamic line schedule routes based on HTTP method
+func (router *Router) handleLineScheduleRoutes(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/line-schedules")
+
+	// Handle hard delete
+	if strings.HasPrefix(path, "/hard-delete/") {
+		router.LineScheduleController.HardDeleteLineSchedule(w, r)
+		return
+	}
+
+	// Handle activate
+	if strings.HasPrefix(path, "/activate/") {
+		router.LineScheduleController.ActivateLineSchedule(w, r)
+		return
+	}
+
+	// Route for getting all line schedules or creating new line schedule
+	if path == "" || path == "/" {
+		switch r.Method {
+		case "GET":
+			router.LineScheduleController.GetAllLineSchedules(w, r)
+		case "POST":
+			router.LineScheduleController.CreateLineSchedule(w, r)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
+		}
+		return
+	}
+
+	// Routes for specific line schedule operations (update, delete)
+	switch r.Method {
+	case "PUT":
+		router.LineScheduleController.UpdateLineSchedule(w, r)
+	case "DELETE":
+		router.LineScheduleController.DeleteLineSchedule(w, r)
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusMethodNotAllowed)

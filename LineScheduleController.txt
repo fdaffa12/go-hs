@@ -1,0 +1,308 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\LineSchedule;
+use App\Models\Style;
+use App\Models\Buyer;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use App\Models\Module;
+use App\Models\UserAccess;
+use Illuminate\Support\Facades\Auth;
+
+
+class LineScheduleController extends Controller
+{
+    private function checkAccess($permission)
+    {
+        $moduleId = Module::where('MODULE_NAME', 'LineSchedule Management')->first()->MODULE_ID;
+        return UserAccess::where('USER_ID', Auth::user()->NIK)
+            ->where('MODULE_ID', $moduleId)
+            ->where('PERMISSION_TYPE', $permission)
+            ->exists();
+    }
+
+    public function index()
+    {
+        if (!$this->checkAccess('view')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        // Dapatkan akses user untuk modul ini
+        $moduleId = Module::where('MODULE_NAME', 'LineSchedule Management')->first()->MODULE_ID;
+        $userAccesses = UserAccess::where('USER_ID', Auth::user()->NIK)
+            ->where('MODULE_ID', $moduleId)
+            ->pluck('PERMISSION_TYPE')
+            ->toArray();
+
+        return view('lineschedule.index', compact('userAccesses'));
+    }
+
+    public function getSchedule(Request $request)
+    {
+        $factory = $request->factory;
+        $date = $request->date;
+
+        $schedules = LineSchedule::where('FACTORY', $factory)
+            ->where('DATE', $date)
+            ->get();
+
+        return response()->json($schedules);
+    }
+
+    public function getRegistrationData(Request $request)
+    {
+        $idReg = $request->idReg;
+        $factory = $request->factory;
+        $date = $request->date;
+
+        $query = LineSchedule::where('FACTORY', $factory)
+            ->where('DATE', $date)
+            ->orderBy('DATE', 'desc');
+
+        if ($idReg) {
+            $query->where('ID_REGISTRASI', $idReg);
+        }
+
+        $registrationData = $query->first();
+
+        if ($registrationData) {
+            return response()->json($registrationData);
+        } else {
+            // Check if ID_REGISTRASI is provided and exists
+            if ($idReg) {
+                $defaultData = LineSchedule::where('ID_REGISTRASI', $idReg)
+                    ->where('DATE', '<', $date)
+                    ->orderBy('DATE', 'desc')
+                    ->first();
+                if ($defaultData) {
+                    return response()->json($defaultData);
+                }
+            }
+
+            // Generate new ID_REGISTRASI if it doesn't exist
+            $newRegistrationId = $this->generateRegistrationId($factory, $date);
+
+            return response()->json([
+                'ID_REGISTRASI' => $newRegistrationId,
+                'FACTORY' => $factory,
+                'DATE' => $date,
+                'LINE' => 'default_line',
+                'STYLE_NO' => 'default_style_no',
+                'NUMBER_OF_MP' => 'default_number_of_mp',
+                'START_DATE' => 'default_start_date'
+            ]);
+        }
+    }
+
+    private function generateRegistrationId($factory, $date)
+    {
+        // Assuming the format is F1-3-11-YYYYMMDD
+        // Generate the registration ID based on the factory and date
+        $formattedDate = date('Ymd', strtotime($date));
+        return "{$factory}-3-11-{$formattedDate}";
+    }
+
+    public function saveChanges(Request $request)
+    {
+        if (!$this->checkAccess('create')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        $data = $request->input('data', []);
+        foreach ($data as $row) {
+            $validated = Validator::make($row, [
+                'ID_REGISTRASI' => 'required|string',
+                'DATE' => 'required|date',
+                'FACTORY' => 'required|string',
+                'LINE' => 'required',
+                'STYLE_NO' => 'required|string',
+                'START_DATE' => 'required|date',
+                'NUMBER_OF_MP' => 'nullable|integer',
+                'WORKING_DAY' => 'nullable|integer',
+                'BUYER_SHORT_NAME' => 'nullable|string', // Add the new column validation
+            ]);
+            if ($validated->fails()) {
+                return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validated->errors()], 422);
+            }
+
+            // Check if the record already exists based on ID_REGISTRASI, FACTORY, and DATE
+            $existingRecord = LineSchedule::where('ID_REGISTRASI', $row['ID_REGISTRASI'])
+                ->where('FACTORY', $row['FACTORY'])
+                ->where('DATE', $row['DATE'])
+                ->first();
+
+            if ($existingRecord) {
+                // Update the existing record
+                $existingRecord->update([
+                    'LINE' => $row['LINE'],
+                    'STYLE_NO' => $row['STYLE_NO'],
+                    'START_DATE' => $row['START_DATE'],
+                    'NUMBER_OF_MP' => $row['NUMBER_OF_MP'],
+                    'WORKING_DAY' => $row['WORKING_DAY'],
+                    'BUYER_SHORT_NAME' => $row['BUYER_SHORT_NAME'], // Add the new column update
+                ]);
+            } else {
+                // Create a new record if it doesn't exist
+                LineSchedule::create([
+                    'ID_REGISTRASI' => $row['ID_REGISTRASI'],
+                    'DATE' => $row['DATE'],
+                    'FACTORY' => $row['FACTORY'],
+                    'LINE' => $row['LINE'],
+                    'STYLE_NO' => $row['STYLE_NO'],
+                    'START_DATE' => $row['START_DATE'],
+                    'NUMBER_OF_MP' => $row['NUMBER_OF_MP'],
+                    'WORKING_DAY' => $row['WORKING_DAY'],
+                    'BUYER_SHORT_NAME' => $row['BUYER_SHORT_NAME'], // Add the new column creation
+                ]);
+            }
+        }
+        return response()->json(['status' => 'success', 'message' => 'Changes saved successfully']);
+    }
+
+    // private function generateRegistrationIdWithLine($factory, $line, $style_no, $start_date)
+    // {
+    //     return strtoupper($factory . '-' . $line . '-' . $style_no . '-' . date('Ymd', strtotime($start_date)));
+    // }
+
+    public function getAllIdRegs()
+    {
+        $idRegs = LineSchedule::select('ID_REGISTRASI')
+            ->orderBy('DATE', 'desc')
+            ->distinct()
+            ->get();
+        return response()->json($idRegs);
+    }
+
+    public function getBuyers()
+    {
+        $buyers = Buyer::select('BUYER_SHORT_NAME')
+            ->orderBy('BUYER_SHORT_NAME', 'asc')
+            ->distinct()
+            ->get();
+        return response()->json($buyers);
+    }
+
+    public function getAllStyles()
+    {
+        $styles = Style::select('STYLE_NO', 'BUYER_SHORT_NAME')
+            ->orderBy('STYLE_NO', 'asc')
+            ->distinct()
+            ->get();
+
+        return response()->json($styles);
+    }
+
+
+    public function delete(Request $request)
+    {
+        if (!$this->checkAccess('delete')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        $idReg = $request->input('idReg');
+
+        // Assuming you have a model named LineSchedule
+        $lineSchedule = LineSchedule::where('ID_REGISTRASI', $idReg)->first();
+
+        if ($lineSchedule) {
+            $lineSchedule->delete();
+            return response()->json(['success' => true]);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Record not found'], 404);
+        }
+    }
+
+    public function deleteMultiple(Request $request)
+    {
+        if (!$this->checkAccess('delete')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $ids = $request->input('ids');
+        $date = $request->input('date');
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => 'No IDs provided.']);
+        }
+
+        try {
+
+            // Cek data yang akan dihapus
+            $recordsToDelete = LineSchedule::whereIn('ID_REGISTRASI', $ids)
+                ->where('DATE', $date)
+                ->get();
+
+            // Lakukan penghapusan
+            $deleted = LineSchedule::whereIn('ID_REGISTRASI', $ids)
+                ->where('DATE', $date)
+                ->delete();
+
+
+            if ($deleted > 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $deleted . ' records deleted successfully.'
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No records found to delete.'
+                ]);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function softDelete(Request $request)
+    {
+        if (!$this->checkAccess('delete')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        $idReg = $request->input('idReg');
+        $schedule = LineSchedule::where('ID_REGISTRASI', $idReg)->first();
+
+        if ($schedule) {
+            // Toggle the DELETE_STATUS
+            $schedule->DELETE_STATUS = $schedule->DELETE_STATUS == 1 ? 0 : 1;
+            $schedule->save();
+
+            return response()->json(['success' => true, 'newStatus' => $schedule->DELETE_STATUS]);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Record not found'], 404);
+        }
+    }
+
+    public function softDeleteMultiple(Request $request)
+    {
+        if (!$this->checkAccess('delete')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        $ids = $request->input('ids');
+        $newStatus = [];
+
+        foreach ($ids as $id) {
+            $schedule = LineSchedule::where('ID_REGISTRASI', $id)->first();
+            if ($schedule) {
+                $schedule->DELETE_STATUS = $schedule->DELETE_STATUS == 1 ? 0 : 1;
+                $schedule->save();
+                $newStatus[$id] = $schedule->DELETE_STATUS;
+            }
+        }
+
+        return response()->json(['success' => true, 'newStatus' => $newStatus]);
+    }
+
+    public function getStylesByBuyer(Request $request)
+    {
+        $buyer = $request->buyer;
+        $styles = Style::where('BUYER_SHORT_NAME', $buyer)
+            ->orderBy('STYLE_NO', 'asc')
+            ->distinct()
+            ->get();
+        return response()->json($styles);
+    }
+}

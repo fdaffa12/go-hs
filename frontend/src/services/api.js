@@ -559,4 +559,84 @@ export const styleService = {
   },
 };
 
+// Line Schedule Service
+export const lineScheduleService = {
+  getAllLineSchedules: async (page = 1, pageSize = 10, filters = {}) => {
+    try {
+      const searchParams = new URLSearchParams({
+        page: page.toString(),
+        page_size: pageSize.toString(),
+      });
+
+      // Add filters if they exist
+      if (filters.factory) searchParams.append("factory", filters.factory);
+      if (filters.date) searchParams.append("date", filters.date);
+
+      const response = await api.get(
+        `/line-schedules?${searchParams.toString()}`
+      );
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  createLineSchedule: async (scheduleData) => {
+    try {
+      const response = await api.post("/line-schedules", scheduleData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  updateLineSchedule: async (id, scheduleData) => {
+    try {
+      const response = await api.put(`/line-schedules/${id}`, scheduleData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  deleteLineSchedule: async (id) => {
+    try {
+      const response = await api.delete(`/line-schedules/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  hardDeleteLineSchedule: async (id) => {
+    try {
+      const response = await api.delete(`/line-schedules/hard-delete/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  activateLineSchedule: async (id) => {
+    try {
+      const response = await api.put(`/line-schedules/activate/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+};
+
 export default api;

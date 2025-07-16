@@ -192,6 +192,35 @@ func createTables() error {
 		return fmt.Errorf("failed to create hs_ord_style table: %v", err)
 	}
 
+	// Add hs_wsb_lineschedule table
+	lineScheduleTableSQL := `
+	CREATE TABLE IF NOT EXISTS hs_wsb_lineschedule (
+		ROWID bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		ID_REGISTRASI varchar(60) NOT NULL,
+		DATE date NOT NULL,
+		FACTORY varchar(10) NOT NULL,
+		LINE varchar(10) NOT NULL,
+		BUYER_SHORT_NAME varchar(10) NOT NULL,
+		STYLE_NO varchar(50) NOT NULL,
+		START_DATE date,
+		NUMBER_OF_MP int(11) NOT NULL,
+		WORKING_DAY int(11) NOT NULL,
+		DELETE_STATUS int(11) NOT NULL DEFAULT 0,
+		created_at timestamp NULL DEFAULT NULL,
+		updated_at timestamp NULL DEFAULT NULL,
+		PRIMARY KEY (ROWID),
+		KEY DATE_idx (DATE),
+		KEY STYLE_NO_idx (STYLE_NO),
+		FOREIGN KEY (BUYER_SHORT_NAME) REFERENCES hs_ord_buyer(BUYER_SHORT_NAME),
+		FOREIGN KEY (STYLE_NO) REFERENCES hs_ord_style(STYLE_NO)
+	);
+	`
+
+	_, err = db.Exec(lineScheduleTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create hs_wsb_lineschedule table: %v", err)
+	}
+
 	// Add profile_picture column if it doesn't exist (for existing databases)
 	// Check if column exists first
 	var columnExists int

@@ -32,6 +32,7 @@ func main() {
 	employeeModel := models.NewEmployeeModel(db)
 	buyerModel := models.NewBuyerModel(db)
 	styleModel := models.NewStyleModel(db)
+	lineScheduleModel := models.NewLineScheduleModel(db)
 
 	// Initialize controllers
 	authController := controllers.NewAuthController(userModel)
@@ -40,6 +41,7 @@ func main() {
 	employeeController := controllers.NewEmployeeController(employeeModel)
 	buyerController := controllers.NewBuyerController(buyerModel)
 	styleController := controllers.NewStyleController(styleModel)
+	lineScheduleController := controllers.NewLineScheduleController(lineScheduleModel)
 
 	// Initialize router
 	router := routes.NewRouter(
@@ -49,6 +51,7 @@ func main() {
 		employeeController,
 		buyerController,
 		styleController,
+		lineScheduleController,
 	)
 	mux := router.SetupRoutes()
 
