@@ -489,12 +489,26 @@ func (uc *UserController) ChangePassword(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(response)
 }
 
+// Helper function to delete profile picture file
+func deleteProfilePictureFile(profilePicturePath string) error {
+	if profilePicturePath == "" {
+		return nil
+	}
+	// Remove leading slash if exists
+	if strings.HasPrefix(profilePicturePath, "/") {
+		profilePicturePath = profilePicturePath[1:]
+	}
+	// Delete the file
+	err := os.Remove(profilePicturePath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // UpdateUserProfile handles updating user profile with image upload
 func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
-	// Debug log
-	fmt.Printf("UpdateUserProfile called with method: %s, URL: %s\n", r.Method, r.URL.Path)
 
 	if r.Method != "PUT" {
 		response := Response{
@@ -510,9 +524,6 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	path := strings.TrimPrefix(r.URL.Path, "/api/users/")
 	path = strings.TrimSuffix(path, "/profile")
 	
-	// Debug log
-	fmt.Printf("Extracted NIK from path: %s\n", path)
-
 	if path == "" {
 		response := Response{
 			Success: false,
@@ -526,8 +537,6 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	// Check if user exists
 	currentUser, err := uc.UserModel.GetByNIK(path)
 	if err != nil {
-		// Debug log
-		fmt.Printf("Error getting user by NIK: %v\n", err)
 		response := Response{
 			Success: false,
 			Message: "User not found",
@@ -537,14 +546,9 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Debug log
-	fmt.Printf("Current user found: %+v\n", currentUser)
-
 	// Parse multipart form with larger size limit
 	err = r.ParseMultipartForm(32 << 20) // 32 MB max
 	if err != nil {
-		// Debug log
-		fmt.Printf("Error parsing multipart form: %v\n", err)
 		response := Response{
 			Success: false,
 			Message: fmt.Sprintf("Failed to parse form data: %v", err),
@@ -558,10 +562,6 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 	name := r.FormValue("name")
 	email := r.FormValue("email")
 	removeProfilePicture := r.FormValue("remove_profile_picture") == "true"
-
-	// Debug log
-	fmt.Printf("Form values - name: %s, email: %s, removeProfilePicture: %v\n", 
-		name, email, removeProfilePicture)
 
 	// Validate input
 	if name == "" || email == "" {
@@ -578,15 +578,13 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 
 	// Handle profile picture removal
 	if removeProfilePicture {
-		// Debug log
-		fmt.Printf("Removing profile picture for user: %s\n", path)
-		
 		// If user has an existing profile picture, delete the file
 		if currentUser.ProfilePicture != nil && *currentUser.ProfilePicture != "" {
-			oldFilePath := "." + *currentUser.ProfilePicture
-			// Debug log
-			fmt.Printf("Deleting old profile picture: %s\n", oldFilePath)
-			os.Remove(oldFilePath)
+			err := deleteProfilePictureFile(*currentUser.ProfilePicture)
+			if err != nil {
+				// Log error but continue, as this is not critical
+				fmt.Printf("Error deleting old profile picture: %v\n", err)
+			}
 		}
 		profilePictureURL = "" // This will trigger profile picture removal in the model
 	} else {
@@ -594,10 +592,6 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		file, header, err := r.FormFile("profile_picture")
 		if err == nil {
 			defer file.Close()
-
-			// Debug log
-			fmt.Printf("New file upload detected - filename: %s, size: %d, content-type: %s\n",
-				header.Filename, header.Size, header.Header.Get("Content-Type"))
 
 			// Validate file type
 			allowedTypes := map[string]bool{
@@ -644,8 +638,11 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 
 			// Delete existing profile picture if exists
 			if currentUser.ProfilePicture != nil && *currentUser.ProfilePicture != "" {
-				oldFilePath := "." + *currentUser.ProfilePicture
-				os.Remove(oldFilePath)
+				err := deleteProfilePictureFile(*currentUser.ProfilePicture)
+				if err != nil {
+					// Log error but continue, as this is not critical
+					fmt.Printf("Error deleting old profile picture: %v\n", err)
+				}
 			}
 
 			// Generate unique filename
@@ -669,6 +666,8 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 			// Copy file content
 			_, err = io.Copy(dst, file)
 			if err != nil {
+				// Clean up the new file if copy failed
+				os.Remove(filePath)
 				response := Response{
 					Success: false,
 					Message: "Failed to save file",
@@ -680,14 +679,7 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 
 			// Set profile picture URL
 			profilePictureURL = fmt.Sprintf("/uploads/profile_pictures/%s", filename)
-			
-			// Debug log
-			fmt.Printf("File saved successfully at: %s\n", filePath)
-			fmt.Printf("Profile picture URL set to: %s\n", profilePictureURL)
 		} else {
-			// Debug log
-			fmt.Printf("No new file uploaded: %v\n", err)
-			
 			// If no new file and not removing, keep existing profile picture
 			if currentUser.ProfilePicture != nil {
 				profilePictureURL = *currentUser.ProfilePicture
@@ -695,15 +687,13 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	// Debug log before database update
-	fmt.Printf("Updating user profile - NIK: %s, name: %s, email: %s, profilePictureURL: %s\n",
-		path, name, email, profilePictureURL)
-
 	// Update user in database
 	updatedUser, err := uc.UserModel.UpdateWithProfilePicture(path, name, email, profilePictureURL)
 	if err != nil {
-		// Debug log
-		fmt.Printf("Error updating user profile: %v\n", err)
+		// If database update fails and we uploaded a new file, clean it up
+		if profilePictureURL != "" && profilePictureURL != *currentUser.ProfilePicture {
+			deleteProfilePictureFile(profilePictureURL)
+		}
 		response := Response{
 			Success: false,
 			Message: fmt.Sprintf("Failed to update user profile: %v", err),
@@ -712,9 +702,6 @@ func (uc *UserController) UpdateUserProfile(w http.ResponseWriter, r *http.Reque
 		json.NewEncoder(w).Encode(response)
 		return
 	}
-
-	// Debug log success
-	fmt.Printf("Successfully updated user profile: %+v\n", updatedUser)
 
 	response := Response{
 		Success: true,
