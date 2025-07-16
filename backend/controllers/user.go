@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,7 +52,26 @@ func (uc *UserController) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := uc.UserModel.GetAll()
+	// Get pagination parameters from query string
+	page := 1
+	pageSize := 10 // default page size
+
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
+		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
+			pageSize = ps
+		}
+	}
+
+	// Get search parameter
+	search := r.URL.Query().Get("search")
+
+	users, err := uc.UserModel.GetAll(page, pageSize, search)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -63,15 +83,21 @@ func (uc *UserController) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert to response format
-	userResponses := make([]*models.UserResponse, len(users))
-	for i, user := range users {
+	userResponses := make([]*models.UserResponse, len(users.Users))
+	for i, user := range users.Users {
 		userResponses[i] = user.ToResponse()
 	}
 
 	response := Response{
 		Success: true,
 		Message: "Users retrieved successfully",
-		Data:    userResponses,
+		Data: map[string]interface{}{
+			"users":        userResponses,
+			"total_items":  users.TotalItems,
+			"total_pages":  users.TotalPages,
+			"current_page": users.CurrentPage,
+			"page_size":    users.PageSize,
+		},
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)

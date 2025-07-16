@@ -158,9 +158,13 @@ export const authService = {
 // User service functions
 export const userService = {
   // Get all users
-  getAllUsers: async () => {
+  getAllUsers: async (page = 1, pageSize = 10, search = "") => {
     try {
-      const response = await api.get("/users");
+      const response = await api.get(
+        `/users?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(
+          search
+        )}`
+      );
       return response.data;
     } catch (error) {
       throw (

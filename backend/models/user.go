@@ -196,10 +196,54 @@ func (m *UserModel) CheckPassword(user *User, password string) bool {
 	return err == nil
 }
 
+// PaginatedUsers represents paginated response for users
+type PaginatedUsers struct {
+	Users       []*User `json:"users"`
+	TotalItems  int     `json:"total_items"`
+	TotalPages  int     `json:"total_pages"`
+	CurrentPage int     `json:"current_page"`
+	PageSize    int     `json:"page_size"`
+}
+
 // GetAll gets all users (for admin purposes)
-func (m *UserModel) GetAll() ([]*User, error) {
-	query := `SELECT NIK, NAME, EMAIL, LEVEL, PROFILE_PICTURE, remember_token, created_at, updated_at FROM hs_wsb_user ORDER BY created_at DESC`
-	rows, err := m.DB.Query(query)
+func (m *UserModel) GetAll(page, pageSize int, search string) (*PaginatedUsers, error) {
+	// Calculate offset
+	offset := (page - 1) * pageSize
+
+	// Base conditions for search
+	searchCondition := ""
+	searchArgs := []interface{}{}
+
+	if search != "" {
+		searchCondition = "WHERE (NIK LIKE ? OR NAME LIKE ? OR EMAIL LIKE ?)"
+		searchPattern := "%" + search + "%"
+		searchArgs = append(searchArgs, searchPattern, searchPattern, searchPattern)
+	}
+
+	// Get total count first with search condition
+	countQuery := `SELECT COUNT(*) FROM hs_wsb_user ` + searchCondition
+	var totalItems int
+	err := m.DB.QueryRow(countQuery, searchArgs...).Scan(&totalItems)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get total count: %v", err)
+	}
+
+	// Calculate total pages
+	totalPages := (totalItems + pageSize - 1) / pageSize
+
+	// Main query with pagination and search
+	query := `
+		SELECT NIK, NAME, EMAIL, LEVEL, PROFILE_PICTURE, remember_token, created_at, updated_at 
+		FROM hs_wsb_user 
+		` + searchCondition + `
+		ORDER BY created_at DESC 
+		LIMIT ? OFFSET ?
+	`
+
+	// Add pagination parameters to search args
+	searchArgs = append(searchArgs, pageSize, offset)
+
+	rows, err := m.DB.Query(query, searchArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %v", err)
 	}
@@ -208,7 +252,16 @@ func (m *UserModel) GetAll() ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		var user User
-		err := rows.Scan(&user.NIK, &user.Name, &user.Email, &user.Level, &user.ProfilePicture, &user.RememberToken, &user.CreatedAt, &user.UpdatedAt)
+		err := rows.Scan(
+			&user.NIK,
+			&user.Name,
+			&user.Email,
+			&user.Level,
+			&user.ProfilePicture,
+			&user.RememberToken,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %v", err)
 		}
@@ -219,7 +272,13 @@ func (m *UserModel) GetAll() ([]*User, error) {
 		return nil, fmt.Errorf("failed to iterate users: %v", err)
 	}
 
-	return users, nil
+	return &PaginatedUsers{
+		Users:       users,
+		TotalItems:  totalItems,
+		TotalPages:  totalPages,
+		CurrentPage: page,
+		PageSize:    pageSize,
+	}, nil
 }
 
 // UpdatePassword updates user's password

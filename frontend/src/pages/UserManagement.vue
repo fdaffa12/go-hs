@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "../stores/auth";
 import { userService, authService } from "../services/api";
@@ -23,6 +23,45 @@ const searchQuery = ref("");
 // Add these after the existing refs
 const employees = ref([]);
 const loadingEmployees = ref(false);
+
+// Pagination and page size options
+const pageSizeOptions = [10, 20, 50, 100, -1]; // -1 represents "All"
+const pageSize = ref(10);
+const currentPage = ref(1);
+const totalItems = ref(0);
+const totalPages = ref(0);
+
+// Add computed property for displayed pages
+const displayedPages = computed(() => {
+  const delta = 2;
+  const range = [];
+  const rangeWithDots = [];
+  let l;
+
+  for (let i = 1; i <= totalPages.value; i++) {
+    if (
+      i === 1 ||
+      i === totalPages.value ||
+      (i >= currentPage.value - delta && i <= currentPage.value + delta)
+    ) {
+      range.push(i);
+    }
+  }
+
+  for (let i of range) {
+    if (l) {
+      if (i - l === 2) {
+        rangeWithDots.push(l + 1);
+      } else if (i - l !== 1) {
+        rangeWithDots.push("...");
+      }
+    }
+    rangeWithDots.push(i);
+    l = i;
+  }
+
+  return rangeWithDots;
+});
 
 // Modal states
 const showCreateModal = ref(false);
@@ -56,13 +95,79 @@ const filteredUsers = computed(() => {
   );
 });
 
-// Methods
+// Methods for pagination
+const handlePageSizeChange = async () => {
+  currentPage.value = 1; // Reset to first page when changing page size
+  if (pageSize.value === -1) {
+    // If "All" is selected, get total count first
+    try {
+      const response = await userService.getAllUsers(1, 1);
+      if (response.success) {
+        pageSize.value = response.data.total_items;
+      }
+    } catch (error) {
+      console.error("Error getting total count:", error);
+      pageSize.value = 100; // Fallback to 100 if error
+    }
+  }
+  fetchUsers();
+};
+
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+    fetchUsers();
+  }
+};
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+    fetchUsers();
+  }
+};
+
+const goToPage = (page) => {
+  if (page !== "..." && page !== currentPage.value) {
+    currentPage.value = page;
+    fetchUsers();
+  }
+};
+
+// Add debounced search method
+const debouncedSearch = ref(null);
+
+const handleSearch = () => {
+  if (debouncedSearch.value) {
+    clearTimeout(debouncedSearch.value);
+  }
+  debouncedSearch.value = setTimeout(() => {
+    currentPage.value = 1; // Reset to first page when searching
+    fetchUsers();
+  }, 300);
+};
+
+// Watch for search query changes
+watch(searchQuery, () => {
+  handleSearch();
+});
+
+// Update fetchUsers method
 const fetchUsers = async () => {
   loading.value = true;
   try {
-    const data = await userService.getAllUsers();
+    const data = await userService.getAllUsers(
+      currentPage.value,
+      pageSize.value === -1 ? 999999 : pageSize.value,
+      searchQuery.value
+    );
     if (data.success) {
-      users.value = data.data || [];
+      // Update pagination data
+      totalItems.value = data.data.total_items;
+      totalPages.value = data.data.total_pages;
+      currentPage.value = data.data.current_page;
+      pageSize.value = data.data.page_size;
+      users.value = data.data.users || [];
     } else {
       console.error("Failed to fetch users:", data.message);
       toast.error("Gagal memuat data pengguna: " + data.message);
@@ -558,6 +663,25 @@ const handleSubmit = async () => {
         </div>
       </div>
 
+      <!-- After the search input -->
+      <div
+        class="mt-4 flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm"
+      >
+        <div class="flex items-center">
+          <span class="text-sm text-gray-700 mr-2">Tampilkan:</span>
+          <select
+            v-model="pageSize"
+            @change="handlePageSizeChange"
+            class="border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option v-for="size in pageSizeOptions" :key="size" :value="size">
+              {{ size === -1 ? "Semua" : size }}
+            </option>
+          </select>
+          <span class="text-sm text-gray-700 ml-2">per halaman</span>
+        </div>
+      </div>
+
       <!-- Users Table -->
       <div
         class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
@@ -705,6 +829,115 @@ const handleSubmit = async () => {
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- After the users table -->
+      <div
+        class="mt-4 flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6"
+      >
+        <div class="flex justify-between flex-1 sm:hidden">
+          <button
+            @click="prevPage"
+            :disabled="currentPage === 1"
+            class="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
+          >
+            Previous
+          </button>
+          <button
+            @click="nextPage"
+            :disabled="currentPage === totalPages"
+            class="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            :class="{
+              'opacity-50 cursor-not-allowed': currentPage === totalPages,
+            }"
+          >
+            Next
+          </button>
+        </div>
+        <div
+          class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between"
+        >
+          <div>
+            <p class="text-sm text-gray-700">
+              Showing
+              <span class="font-medium">{{
+                (currentPage - 1) * pageSize + 1
+              }}</span>
+              to
+              <span class="font-medium">{{
+                Math.min(currentPage * pageSize, totalItems)
+              }}</span>
+              of
+              <span class="font-medium">{{ totalItems }}</span>
+              results
+            </p>
+          </div>
+          <div>
+            <nav
+              class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+              aria-label="Pagination"
+            >
+              <button
+                @click="prevPage"
+                :disabled="currentPage === 1"
+                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                :class="{ 'opacity-50 cursor-not-allowed': currentPage === 1 }"
+              >
+                <span class="sr-only">Previous</span>
+                <svg
+                  class="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                v-for="page in displayedPages"
+                :key="page"
+                @click="goToPage(page)"
+                :class="[
+                  page === currentPage
+                    ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                    : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50',
+                  'relative inline-flex items-center px-4 py-2 border text-sm font-medium',
+                ]"
+              >
+                {{ page }}
+              </button>
+              <button
+                @click="nextPage"
+                :disabled="currentPage === totalPages"
+                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                :class="{
+                  'opacity-50 cursor-not-allowed': currentPage === totalPages,
+                }"
+              >
+                <span class="sr-only">Next</span>
+                <svg
+                  class="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </nav>
+          </div>
         </div>
       </div>
 
