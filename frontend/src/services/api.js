@@ -403,6 +403,79 @@ export const employeeService = {
   },
 };
 
+// Buyer Service
+export const buyerService = {
+  getAllBuyers: async (page = 1, pageSize = 10, search = "") => {
+    try {
+      const response = await api.get(
+        `/buyers?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(
+          search
+        )}`
+      );
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  createBuyer: async (buyerData) => {
+    try {
+      const response = await api.post("/buyers", buyerData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  updateBuyer: async (shortName, buyerData) => {
+    try {
+      const response = await api.put(`/buyers/${shortName}`, buyerData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  deleteBuyer: async (shortName) => {
+    try {
+      const response = await api.delete(`/buyers/${shortName}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  hardDeleteBuyer: async (shortName) => {
+    try {
+      const response = await api.delete(`/buyers/hard-delete/${shortName}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  activateBuyer: async (shortName) => {
+    try {
+      const response = await api.put(`/buyers/activate/${shortName}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+};
+
 // Test connection
 export const testConnection = async () => {
   try {

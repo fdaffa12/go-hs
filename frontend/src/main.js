@@ -18,6 +18,7 @@ import Settings from "./pages/Settings.vue";
 import UserManagement from "./pages/UserManagement.vue";
 import DepartmentManagement from "./pages/DepartmentManagement.vue";
 import EmployeeManagement from "./pages/EmployeeManagement.vue";
+import BuyerManagement from "./pages/BuyerManagement.vue";
 
 // Define routes
 const routes = [
@@ -36,6 +37,11 @@ const routes = [
   {
     path: "/employees",
     component: EmployeeManagement,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/buyers",
+    component: BuyerManagement,
     meta: { requiresAuth: true },
   },
 ];

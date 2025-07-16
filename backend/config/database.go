@@ -153,6 +153,22 @@ func createTables() error {
 		return fmt.Errorf("failed to create hs_hrd_employee table: %v", err)
 	}
 
+	// Add hs_ord_buyer table
+	buyerTableSQL := `
+	CREATE TABLE IF NOT EXISTS hs_ord_buyer (
+		BUYER_SHORT_NAME VARCHAR(255) PRIMARY KEY,
+		BUYER_LONG_NAME VARCHAR(255) NOT NULL,
+		DELETE_STATUS INT NOT NULL DEFAULT 0,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	);
+	`
+
+	_, err = db.Exec(buyerTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create hs_ord_buyer table: %v", err)
+	}
+
 	// Add profile_picture column if it doesn't exist (for existing databases)
 	// Check if column exists first
 	var columnExists int

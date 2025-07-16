@@ -30,15 +30,17 @@ func main() {
 	userModel := models.NewUserModel(db)
 	departmentModel := models.NewDepartmentModel(db)
 	employeeModel := models.NewEmployeeModel(db)
+	buyerModel := models.NewBuyerModel(db)
 
 	// Initialize controllers
 	authController := controllers.NewAuthController(userModel)
 	userController := controllers.NewUserController(userModel)
 	departmentController := controllers.NewDepartmentController(departmentModel)
 	employeeController := controllers.NewEmployeeController(employeeModel)
+	buyerController := controllers.NewBuyerController(buyerModel)
 
 	// Initialize router
-	router := routes.NewRouter(authController, userController, departmentController, employeeController)
+	router := routes.NewRouter(authController, userController, departmentController, employeeController, buyerController)
 	mux := router.SetupRoutes()
 
 	// Get server port

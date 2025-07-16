@@ -14,15 +14,23 @@ type Router struct {
 	UserController      *controllers.UserController
 	DepartmentController *controllers.DepartmentController
 	EmployeeController   *controllers.EmployeeController
+	BuyerController     *controllers.BuyerController
 }
 
 // NewRouter creates new router instance
-func NewRouter(authController *controllers.AuthController, userController *controllers.UserController, departmentController *controllers.DepartmentController, employeeController *controllers.EmployeeController) *Router {
+func NewRouter(
+	authController *controllers.AuthController,
+	userController *controllers.UserController,
+	departmentController *controllers.DepartmentController,
+	employeeController *controllers.EmployeeController,
+	buyerController *controllers.BuyerController,
+) *Router {
 	return &Router{
 		AuthController:       authController,
 		UserController:      userController,
 		DepartmentController: departmentController,
 		EmployeeController:   employeeController,
+		BuyerController:     buyerController,
 	}
 }
 
@@ -51,6 +59,10 @@ func (router *Router) SetupRoutes() *http.ServeMux {
 	// Employee management routes (authentication required)
 	mux.HandleFunc("/api/employees", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleEmployeeRoutes))))
 	mux.HandleFunc("/api/employees/", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleEmployeeRoutes))))
+
+	// Buyer management routes (authentication required)
+	mux.HandleFunc("/api/buyers", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleBuyerRoutes))))
+	mux.HandleFunc("/api/buyers/", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleBuyerRoutes))))
 
 	// Public test route (for testing backend connection without auth)
 	mux.HandleFunc("/api/hello", middleware.CORSMiddleware(middleware.LoggingMiddleware(router.AuthController.TestConnection)))
@@ -194,6 +206,50 @@ func (router *Router) handleEmployeeRoutes(w http.ResponseWriter, r *http.Reques
 		router.EmployeeController.UpdateEmployee(w, r)
 	case "DELETE":
 		router.EmployeeController.DeleteEmployee(w, r)
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
+	}
+}
+
+// handleBuyerRoutes handles dynamic buyer routes based on HTTP method
+func (router *Router) handleBuyerRoutes(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/buyers")
+
+	// Handle hard delete
+	if strings.HasPrefix(path, "/hard-delete/") {
+		router.BuyerController.HardDeleteBuyer(w, r)
+		return
+	}
+
+	// Handle activate
+	if strings.HasPrefix(path, "/activate/") {
+		router.BuyerController.ActivateBuyer(w, r)
+		return
+	}
+
+	// Route for getting all buyers or creating new buyer
+	if path == "" || path == "/" {
+		switch r.Method {
+		case "GET":
+			router.BuyerController.GetAllBuyers(w, r)
+		case "POST":
+			router.BuyerController.CreateBuyer(w, r)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
+		}
+		return
+	}
+
+	// Routes for specific buyer operations (update, delete)
+	switch r.Method {
+	case "PUT":
+		router.BuyerController.UpdateBuyer(w, r)
+	case "DELETE":
+		router.BuyerController.DeleteBuyer(w, r)
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusMethodNotAllowed)
