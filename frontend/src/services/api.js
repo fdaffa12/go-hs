@@ -486,4 +486,77 @@ export const testConnection = async () => {
   }
 };
 
+// Style Service
+export const styleService = {
+  getAllStyles: async (page = 1, pageSize = 10, search = "") => {
+    try {
+      const response = await api.get(
+        `/styles?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(
+          search
+        )}`
+      );
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  createStyle: async (styleData) => {
+    try {
+      const response = await api.post("/styles", styleData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  updateStyle: async (styleNo, styleData) => {
+    try {
+      const response = await api.put(`/styles/${styleNo}`, styleData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  deleteStyle: async (styleNo) => {
+    try {
+      const response = await api.delete(`/styles/${styleNo}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  hardDeleteStyle: async (styleNo) => {
+    try {
+      const response = await api.delete(`/styles/hard-delete/${styleNo}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  activateStyle: async (styleNo) => {
+    try {
+      const response = await api.put(`/styles/activate/${styleNo}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+};
+
 export default api;
