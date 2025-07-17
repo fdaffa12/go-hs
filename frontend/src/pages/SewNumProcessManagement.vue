@@ -40,7 +40,7 @@
 
             <!-- Add Bulk Edit button -->
             <button
-              v-if="!isBulkEditing && processes.length > 0"
+              v-if="showBulkEditButton"
               @click="startBulkEdit"
               class="btn btn-secondary flex items-center justify-center gap-2 w-full sm:w-auto"
             >
@@ -958,14 +958,21 @@ import * as XLSX from "xlsx";
 const authStore = useAuthStore();
 const toast = useToast();
 
-// Reactive state
+// Initialize reactive state with default values
 const loading = ref(false);
-const processes = ref([]);
+const processes = ref([]); // Initialize as empty array instead of null
 const buyers = ref([]);
 const styles = ref([]);
 const newRows = ref([]);
 const selectedRows = ref(new Set());
 const selectAll = ref(false);
+const isBulkEditing = ref(false);
+const editedProcesses = ref(new Map());
+
+// Update the bulk edit button condition
+const showBulkEditButton = computed(() => {
+  return !isBulkEditing.value && processes.value && processes.value.length > 0;
+});
 
 // Modal states
 const showSoftDeleteModal = ref(false);
@@ -978,10 +985,6 @@ const showSaveAllModal = ref(false);
 
 // Store process to be deleted/activated
 const selectedProcess = ref(null);
-
-// Add new state for bulk editing
-const isBulkEditing = ref(false);
-const editedProcesses = ref(new Map()); // Store edited processes by ID
 
 // Filters
 const filters = ref({
@@ -1559,6 +1562,10 @@ const confirmSaveAll = async () => {
 const startBulkEdit = () => {
   if (!filters.value.buyer || !filters.value.style) {
     toast.error("Pilih buyer dan style terlebih dahulu");
+    return;
+  }
+  if (!processes.value || processes.value.length === 0) {
+    toast.error("Tidak ada data untuk diedit");
     return;
   }
   isBulkEditing.value = true;
