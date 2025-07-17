@@ -38,7 +38,73 @@
               <span class="sm:hidden">Tambah</span>
             </button>
 
-            <!-- Add Save All button -->
+            <!-- Add Bulk Edit button -->
+            <button
+              v-if="!isBulkEditing && processes.length > 0"
+              @click="startBulkEdit"
+              class="btn btn-secondary flex items-center justify-center gap-2 w-full sm:w-auto"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+              <span>Edit Massal</span>
+            </button>
+
+            <!-- Add Save All Changes button when in bulk edit mode -->
+            <button
+              v-if="isBulkEditing"
+              @click="saveBulkEdits"
+              class="btn btn-success flex items-center justify-center gap-2 w-full sm:w-auto"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              <span>Simpan Semua Perubahan</span>
+            </button>
+
+            <!-- Add Cancel Edit button when in bulk edit mode -->
+            <button
+              v-if="isBulkEditing"
+              @click="cancelBulkEdit"
+              class="btn btn-danger flex items-center justify-center gap-2 w-full sm:w-auto"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+              <span>Batal Edit</span>
+            </button>
+
+            <!-- Add Save All button for new rows -->
             <button
               v-if="newRows.length > 0"
               @click="showSaveAllConfirm"
@@ -55,7 +121,7 @@
                   stroke-linejoin="round"
                   stroke-width="2"
                   d="M5 13l4 4L19 7"
-                ></path>
+                />
               </svg>
               <span>Save All ({{ newRows.length }})</span>
             </button>
@@ -444,9 +510,11 @@
                   />
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <input
-                      v-model.number="process.editedNoProcess"
+                      v-model.number="
+                        editedProcesses.get(process.id).editedNoProcess
+                      "
                       type="number"
                       class="form-input"
                       placeholder="No Process"
@@ -457,9 +525,9 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <select
-                      v-model="process.editedCategory"
+                      v-model="editedProcesses.get(process.id).editedCategory"
                       class="form-select"
                     >
                       <option value="">Select Category</option>
@@ -472,9 +540,11 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <input
-                      v-model="process.editedSubCategory"
+                      v-model="
+                        editedProcesses.get(process.id).editedSubCategory
+                      "
                       class="form-input"
                       placeholder="Sub Category"
                     />
@@ -484,9 +554,11 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <input
-                      v-model.number="process.editedSmvProcGsd"
+                      v-model.number="
+                        editedProcesses.get(process.id).editedSmvProcGsd
+                      "
                       type="number"
                       step="0.0001"
                       class="form-input"
@@ -498,9 +570,11 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <input
-                      v-model.number="process.editedSmvProcEst"
+                      v-model.number="
+                        editedProcesses.get(process.id).editedSmvProcEst
+                      "
                       type="number"
                       step="0.0001"
                       class="form-input"
@@ -512,9 +586,11 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <input
-                      v-model="process.editedProcessNameEng"
+                      v-model="
+                        editedProcesses.get(process.id).editedProcessNameEng
+                      "
                       class="form-input"
                       placeholder="Process Name (ENG)"
                     />
@@ -524,9 +600,11 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <input
-                      v-model="process.editedProcessNameInd"
+                      v-model="
+                        editedProcesses.get(process.id).editedProcessNameInd
+                      "
                       class="form-input"
                       placeholder="Process Name (IND)"
                     />
@@ -536,9 +614,11 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div v-if="process.isEditing">
+                  <div v-if="isBulkEditing || process.isEditing">
                     <input
-                      v-model="process.editedMachineCode"
+                      v-model="
+                        editedProcesses.get(process.id).editedMachineCode
+                      "
                       class="form-input"
                       placeholder="Machine Code"
                       maxlength="2"
@@ -564,7 +644,7 @@
                   class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
                 >
                   <div class="flex justify-end space-x-2">
-                    <template v-if="process.isEditing">
+                    <template v-if="isBulkEditing || process.isEditing">
                       <button
                         @click="saveInlineEdit(process)"
                         class="text-green-600 hover:text-green-900"
@@ -898,6 +978,10 @@ const showSaveAllModal = ref(false);
 
 // Store process to be deleted/activated
 const selectedProcess = ref(null);
+
+// Add new state for bulk editing
+const isBulkEditing = ref(false);
+const editedProcesses = ref(new Map()); // Store edited processes by ID
 
 // Filters
 const filters = ref({
@@ -1352,9 +1436,10 @@ const saveAllNewRows = async () => {
   }
 };
 
+// Update the bulk soft delete methods
 const showBulkSoftDeleteConfirm = () => {
   if (selectedRows.value.size === 0) {
-    toast.error("Please select at least one process to deactivate.");
+    toast.error("Pilih setidaknya satu proses untuk dinonaktifkan.");
     return;
   }
   showBulkSoftDeleteModal.value = true;
@@ -1362,7 +1447,7 @@ const showBulkSoftDeleteConfirm = () => {
 
 const confirmBulkSoftDelete = async () => {
   try {
-    const response = await sewNumProcessService.bulkSoftDelete(
+    const response = await sewNumProcessService.bulkDelete(
       Array.from(selectedRows.value)
     );
     if (response.success) {
@@ -1467,6 +1552,73 @@ const confirmSaveAll = async () => {
     toast.error("Terjadi kesalahan saat menyimpan proses baru");
   } finally {
     showSaveAllModal.value = false;
+  }
+};
+
+// Add new methods for bulk editing
+const startBulkEdit = () => {
+  if (!filters.value.buyer || !filters.value.style) {
+    toast.error("Pilih buyer dan style terlebih dahulu");
+    return;
+  }
+  isBulkEditing.value = true;
+  // Initialize all processes for editing
+  processes.value.forEach((process) => {
+    editedProcesses.value.set(process.id, {
+      ...process,
+      isEditing: true,
+      editedNoProcess: process.no_process,
+      editedCategory: process.category,
+      editedSubCategory: process.sub_category,
+      editedSmvProcGsd: process.smv_proc_gsd,
+      editedSmvProcEst: process.smv_proc_est,
+      editedProcessNameEng: process.process_name_eng,
+      editedProcessNameInd: process.process_name_ind,
+      editedMachineCode: process.machine_code,
+    });
+  });
+};
+
+const cancelBulkEdit = () => {
+  isBulkEditing.value = false;
+  editedProcesses.value.clear();
+  handleStyleChange(); // Refresh data
+};
+
+const saveBulkEdits = async () => {
+  const editedRows = Array.from(editedProcesses.value.values()).map(
+    (process) => ({
+      id: process.id,
+      buyer_short_name: process.buyer_short_name,
+      style_no: process.style_no,
+      no_process: process.editedNoProcess,
+      category: process.editedCategory,
+      sub_category: process.editedSubCategory,
+      smv_proc_gsd: process.editedSmvProcGsd,
+      smv_proc_est: process.editedSmvProcEst,
+      process_name_eng: process.editedProcessNameEng,
+      process_name_ind: process.editedProcessNameInd,
+      machine_code: process.editedMachineCode,
+    })
+  );
+
+  if (editedRows.length === 0) {
+    toast.error("Tidak ada perubahan untuk disimpan");
+    return;
+  }
+
+  try {
+    const response = await sewNumProcessService.bulkSave(editedRows);
+    if (response.success) {
+      toast.success(`${editedRows.length} proses berhasil diperbarui`);
+      isBulkEditing.value = false;
+      editedProcesses.value.clear();
+      handleStyleChange();
+    } else {
+      toast.error(response.message || "Gagal menyimpan perubahan");
+    }
+  } catch (error) {
+    toast.error("Terjadi kesalahan saat menyimpan perubahan");
   }
 };
 </script>

@@ -92,6 +92,11 @@ func (router *Router) SetupRoutes() *http.ServeMux {
 	mux.HandleFunc("/api/sew-num-process", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleSewNumProcessRoutes))))
 	mux.HandleFunc("/api/sew-num-process/", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleSewNumProcessRoutes))))
 
+	// Add specific route for bulk operations
+	mux.HandleFunc("/api/sew-num-process/bulk-delete", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.SewNumProcessController.BulkDelete))))
+	mux.HandleFunc("/api/sew-num-process/bulk-activate", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.SewNumProcessController.BulkActivate))))
+	mux.HandleFunc("/api/sew-num-process/bulk-hard-delete", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.SewNumProcessController.BulkHardDelete))))
+
 	// Public test route (for testing backend connection without auth)
 	mux.HandleFunc("/api/hello", middleware.CORSMiddleware(middleware.LoggingMiddleware(router.AuthController.TestConnection)))
 
@@ -417,45 +422,42 @@ func (router *Router) handleHolidayRoutes(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte(`{"success": false, "message": "Route not found"}`))
 }
+
 // handleSewNumProcessRoutes handles dynamic sew numbering process routes based on HTTP method
 func (router *Router) handleSewNumProcessRoutes(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/sew-num-process")
+    path := strings.TrimPrefix(r.URL.Path, "/api/sew-num-process")
 
-	// Handle hard delete
-	if strings.HasPrefix(path, "/hard-delete/") {
-		router.SewNumProcessController.HardDelete(w, r)
-		return
-	}
+    // Handle hard delete
+    if strings.HasPrefix(path, "/hard-delete/") {
+        router.SewNumProcessController.HardDelete(w, r)
+        return
+    }
 
-	// Handle activate
-	if strings.HasPrefix(path, "/activate/") {
-		router.SewNumProcessController.Activate(w, r)
-		return
-	}
+    // Handle activate
+    if strings.HasPrefix(path, "/activate/") {
+        router.SewNumProcessController.Activate(w, r)
+        return
+    }
 
-	// Route for getting all processes or bulk operations
-	if path == "" || path == "/" {
-		switch r.Method {
-		case "GET":
-			router.SewNumProcessController.GetAllProcesses(w, r)
-		case "POST":
-			if strings.Contains(r.URL.Path, "bulk-delete") {
-				router.SewNumProcessController.BulkDelete(w, r)
-			} else {
-				router.SewNumProcessController.BulkSave(w, r)
-			}
-		case "DELETE":
-			router.SewNumProcessController.Delete(w, r)
-		default:
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
-		}
-		return
-	}
+    // Route for getting all processes or bulk operations
+    if path == "" || path == "/" {
+        switch r.Method {
+        case "GET":
+            router.SewNumProcessController.GetAllProcesses(w, r)
+        case "POST":
+            router.SewNumProcessController.BulkSave(w, r)
+        case "DELETE":
+            router.SewNumProcessController.Delete(w, r)
+        default:
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusMethodNotAllowed)
+            w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
+        }
+        return
+    }
 
-	// If we get here, the path is not recognized
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotFound)
-	w.Write([]byte(`{"success": false, "message": "Route not found"}`))
+    // If we get here, the path is not recognized
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusNotFound)
+    w.Write([]byte(`{"success": false, "message": "Route not found"}`))
 }

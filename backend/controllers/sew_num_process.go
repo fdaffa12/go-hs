@@ -190,45 +190,58 @@ func (c *SewNumProcessController) Delete(w http.ResponseWriter, r *http.Request)
 
 // BulkDelete handles bulk soft delete operations
 func (c *SewNumProcessController) BulkDelete(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+    w.Header().Set("Content-Type", "application/json")
 
-	if r.Method != "POST" {
-		response := Response{
-			Success: false,
-			Message: "Method not allowed",
-		}
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(response)
-		return
-	}
+    if r.Method != "POST" {
+        response := Response{
+            Success: false,
+            Message: "Method not allowed",
+        }
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
 
-	var ids []int64
-	if err := json.NewDecoder(r.Body).Decode(&ids); err != nil {
-		response := Response{
-			Success: false,
-			Message: fmt.Sprintf("Invalid request format: %v", err),
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(response)
-		return
-	}
+    // Parse request body
+    var req struct {
+        IDs []int64 `json:"ids"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        response := Response{
+            Success: false,
+            Message: fmt.Sprintf("Invalid request format: %v", err),
+        }
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
 
-	if err := c.SewNumProcessModel.BulkDelete(ids); err != nil {
-		response := Response{
-			Success: false,
-			Message: fmt.Sprintf("Failed to delete processes: %v", err),
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(response)
-		return
-	}
+    if len(req.IDs) == 0 {
+        response := Response{
+            Success: false,
+            Message: "No IDs provided for deletion",
+        }
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
 
-	response := Response{
-		Success: true,
-		Message: "Processes deleted successfully",
-	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+    if err := c.SewNumProcessModel.BulkDelete(req.IDs); err != nil {
+        response := Response{
+            Success: false,
+            Message: fmt.Sprintf("Failed to delete processes: %v", err),
+        }
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    response := Response{
+        Success: true,
+        Message: fmt.Sprintf("%d processes deleted successfully", len(req.IDs)),
+    }
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(response)
 }
 
 // Activate handles reactivating a soft-deleted process
@@ -327,4 +340,122 @@ func (c *SewNumProcessController) HardDelete(w http.ResponseWriter, r *http.Requ
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// BulkActivate handles bulk activation of soft-deleted processes
+func (c *SewNumProcessController) BulkActivate(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+
+    if r.Method != "POST" {
+        response := Response{
+            Success: false,
+            Message: "Method not allowed",
+        }
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    // Parse request body
+    var req struct {
+        IDs []int64 `json:"ids"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        response := Response{
+            Success: false,
+            Message: fmt.Sprintf("Invalid request format: %v", err),
+        }
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    if len(req.IDs) == 0 {
+        response := Response{
+            Success: false,
+            Message: "No IDs provided for activation",
+        }
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    // Activate each process
+    for _, id := range req.IDs {
+        if err := c.SewNumProcessModel.Activate(id); err != nil {
+            response := Response{
+                Success: false,
+                Message: fmt.Sprintf("Failed to activate processes: %v", err),
+            }
+            w.WriteHeader(http.StatusInternalServerError)
+            json.NewEncoder(w).Encode(response)
+            return
+        }
+    }
+
+    response := Response{
+        Success: true,
+        Message: fmt.Sprintf("%d processes activated successfully", len(req.IDs)),
+    }
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(response)
+}
+
+// BulkHardDelete handles bulk permanent deletion of processes
+func (c *SewNumProcessController) BulkHardDelete(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+
+    if r.Method != "POST" {
+        response := Response{
+            Success: false,
+            Message: "Method not allowed",
+        }
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    // Parse request body
+    var req struct {
+        IDs []int64 `json:"ids"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        response := Response{
+            Success: false,
+            Message: fmt.Sprintf("Invalid request format: %v", err),
+        }
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    if len(req.IDs) == 0 {
+        response := Response{
+            Success: false,
+            Message: "No IDs provided for deletion",
+        }
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(response)
+        return
+    }
+
+    // Hard delete each process
+    for _, id := range req.IDs {
+        if err := c.SewNumProcessModel.HardDelete(id); err != nil {
+            response := Response{
+                Success: false,
+                Message: fmt.Sprintf("Failed to permanently delete processes: %v", err),
+            }
+            w.WriteHeader(http.StatusInternalServerError)
+            json.NewEncoder(w).Encode(response)
+            return
+        }
+    }
+
+    response := Response{
+        Success: true,
+        Message: fmt.Sprintf("%d processes permanently deleted", len(req.IDs)),
+    }
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(response)
 } 

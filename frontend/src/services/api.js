@@ -770,7 +770,7 @@ export const sewNumProcessService = {
 
   bulkDelete: async (ids) => {
     try {
-      const response = await api.post("/sew-num-process/bulk-delete", ids);
+      const response = await api.post("/sew-num-process/bulk-delete", { ids });
       return response.data;
     } catch (error) {
       throw (
@@ -793,6 +793,32 @@ export const sewNumProcessService = {
   hardDeleteProcess: async (id) => {
     try {
       const response = await api.delete(`/sew-num-process/hard-delete/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  bulkActivate: async (ids) => {
+    try {
+      const response = await api.post("/sew-num-process/bulk-activate", {
+        ids,
+      });
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  bulkHardDelete: async (ids) => {
+    try {
+      const response = await api.post("/sew-num-process/bulk-hard-delete", {
+        ids,
+      });
       return response.data;
     } catch (error) {
       throw (
