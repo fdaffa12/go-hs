@@ -1,3 +1,439 @@
+<script setup>
+import { ref, computed, onMounted, watch } from "vue";
+import { useToast } from "vue-toastification";
+import { useAuthStore } from "../stores/auth";
+import { styleService, buyerService } from "../services/api";
+import AuthenticatedLayout from "../layouts/AuthenticatedLayout.vue";
+
+// Add click-outside directive
+const vClickOutside = {
+  mounted(el, binding) {
+    el._clickOutside = (event) => {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value(event);
+      }
+    };
+    document.addEventListener("click", el._clickOutside);
+  },
+  unmounted(el) {
+    document.removeEventListener("click", el._clickOutside);
+  },
+};
+
+const authStore = useAuthStore();
+const toast = useToast();
+
+// Reactive data
+const styles = ref([]);
+const buyers = ref([]); // Add buyers list
+const buyerSearchQuery = ref(""); // Add buyer search query
+const showBuyerDropdown = ref(false); // Control dropdown visibility
+const loading = ref(false);
+const submitting = ref(false);
+const searchQuery = ref("");
+
+// Modal states
+const showCreateModal = ref(false);
+const showEditModal = ref(false);
+const showDeleteModal = ref(false);
+const showSoftDeleteModal = ref(false);
+const showHardDeleteModal = ref(false);
+
+// Form data - Moved up before any methods that use it
+const styleForm = ref({
+  style_no: "",
+  buyer_short_name: "",
+  unit: "",
+  t_b: "",
+  sub_category: "",
+  fabric: "",
+  smv_accum: null,
+});
+
+const styleToDelete = ref(null);
+const styleToHardDelete = ref(null);
+
+// Pagination and page size options
+const pageSizeOptions = [10, 20, 50, 100, -1];
+const pageSize = ref(10);
+const currentPage = ref(1);
+const totalItems = ref(0);
+const totalPages = ref(0);
+
+// Add debounced search method
+const debouncedSearch = ref(null);
+
+const handleSearch = () => {
+  if (debouncedSearch.value) {
+    clearTimeout(debouncedSearch.value);
+  }
+  debouncedSearch.value = setTimeout(() => {
+    currentPage.value = 1; // Reset to first page when searching
+    fetchStyles();
+  }, 300);
+};
+
+// Watch for search query changes
+watch(searchQuery, () => {
+  handleSearch();
+});
+
+// Methods
+const handlePageSizeChange = async () => {
+  currentPage.value = 1; // Reset to first page when changing page size
+  if (pageSize.value === -1) {
+    try {
+      const response = await styleService.getAllStyles(1, 1);
+      if (response.success) {
+        pageSize.value = response.data.total_items;
+      }
+    } catch (error) {
+      console.error("Error getting total count:", error);
+      pageSize.value = 100; // Fallback to 100 if error
+    }
+  }
+  fetchStyles();
+};
+
+const fetchStyles = async () => {
+  loading.value = true;
+  try {
+    const data = await styleService.getAllStyles(
+      currentPage.value,
+      pageSize.value === -1 ? 999999 : pageSize.value,
+      searchQuery.value
+    );
+    if (data.success) {
+      totalItems.value = data.data.total_items;
+      totalPages.value = data.data.total_pages;
+      currentPage.value = data.data.current_page;
+      pageSize.value = data.data.page_size;
+      styles.value = data.data.styles || [];
+    } else {
+      console.error("Failed to fetch styles:", data.message);
+      toast.error("Gagal memuat data style: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error fetching styles:", error);
+    toast.error("Terjadi kesalahan saat memuat data style");
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Add method to fetch buyers
+const fetchBuyers = async (search = "") => {
+  try {
+    const data = await buyerService.getAllBuyers(1, 100, search);
+    if (data.success) {
+      buyers.value = data.data.buyers || [];
+    } else {
+      console.error("Failed to fetch buyers:", data.message);
+    }
+  } catch (error) {
+    console.error("Error fetching buyers:", error);
+  }
+};
+
+// Add method to handle buyer search
+const handleBuyerSearch = () => {
+  fetchBuyers(buyerSearchQuery.value);
+};
+
+// Modify the selectBuyer method
+const selectBuyer = (buyer) => {
+  styleForm.value.buyer_short_name = buyer.short_name;
+  buyerSearchQuery.value = `${buyer.short_name} - ${buyer.long_name}`; // Update search input to show selected buyer
+  showBuyerDropdown.value = false;
+};
+
+// Add method to clear buyer selection
+const clearBuyerSelection = () => {
+  styleForm.value.buyer_short_name = "";
+  buyerSearchQuery.value = "";
+};
+
+// Add watcher for buyer search
+watch(buyerSearchQuery, () => {
+  handleBuyerSearch();
+});
+
+// Add method to format style number
+const formatStyleNo = (styleNo, tb) => {
+  if (tb) {
+    return `${styleNo}(${tb})`;
+  }
+  return styleNo;
+};
+
+// Add watcher for T/B changes
+watch(
+  () => styleForm.value.t_b,
+  (newTB) => {
+    if (styleForm.value.style_no && styleForm.value.unit === "SET") {
+      // Remove any existing T/B suffix first
+      let baseStyleNo = styleForm.value.style_no.replace(/\(T1\)|\(B1\)$/, "");
+      styleForm.value.style_no = formatStyleNo(baseStyleNo, newTB);
+    }
+  }
+);
+
+// Add watcher for unit changes
+watch(
+  () => styleForm.value.unit,
+  (newUnit) => {
+    if (newUnit !== "SET") {
+      // Remove T/B value and any T/B suffix from style number
+      styleForm.value.t_b = "";
+      if (styleForm.value.style_no) {
+        styleForm.value.style_no = styleForm.value.style_no.replace(
+          /\(T1\)|\(B1\)$/,
+          ""
+        );
+      }
+    }
+  }
+);
+
+// Lifecycle
+onMounted(() => {
+  fetchStyles();
+});
+
+// Add pagination methods
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+    fetchStyles();
+  }
+};
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+    fetchStyles();
+  }
+};
+
+const goToPage = (page) => {
+  if (page !== "..." && page !== currentPage.value) {
+    currentPage.value = page;
+    fetchStyles();
+  }
+};
+
+// Add computed property for displayed pages
+const displayedPages = computed(() => {
+  const delta = 2;
+  const range = [];
+  const rangeWithDots = [];
+  let l;
+
+  for (let i = 1; i <= totalPages.value; i++) {
+    if (
+      i === 1 ||
+      i === totalPages.value ||
+      (i >= currentPage.value - delta && i <= currentPage.value + delta)
+    ) {
+      range.push(i);
+    }
+  }
+
+  for (let i of range) {
+    if (l) {
+      if (i - l === 2) {
+        rangeWithDots.push(l + 1);
+      } else if (i - l !== 1) {
+        rangeWithDots.push("...");
+      }
+    }
+    rangeWithDots.push(i);
+    l = i;
+  }
+
+  return rangeWithDots;
+});
+
+// Methods for style operations
+const openCreateModal = () => {
+  styleForm.value = {
+    style_no: "",
+    buyer_short_name: "",
+    unit: "",
+    t_b: "",
+    sub_category: "",
+    fabric: "",
+    smv_accum: null,
+  };
+  buyerSearchQuery.value = "";
+  fetchBuyers();
+  showCreateModal.value = true;
+};
+
+const editStyle = (style) => {
+  // Remove T/B suffix from style number for form
+  const baseStyleNo = style.style_no.replace(/\(T1\)|\(B1\)$/, "");
+  styleForm.value = {
+    ...style,
+    style_no: baseStyleNo,
+  };
+
+  // Find the buyer to get the long name
+  fetchBuyers().then(() => {
+    const selectedBuyer = buyers.value.find(
+      (b) => b.short_name === style.buyer_short_name
+    );
+    if (selectedBuyer) {
+      buyerSearchQuery.value = `${selectedBuyer.short_name} - ${selectedBuyer.long_name}`;
+    } else {
+      buyerSearchQuery.value = style.buyer_short_name;
+    }
+  });
+  showEditModal.value = true;
+};
+
+const closeModal = () => {
+  showCreateModal.value = false;
+  showEditModal.value = false;
+  styleForm.value = {
+    style_no: "",
+    buyer_short_name: "",
+    unit: "",
+    t_b: "",
+    sub_category: "",
+    fabric: "",
+    smv_accum: null,
+  };
+};
+
+const createStyle = async () => {
+  submitting.value = true;
+  try {
+    // Format the style number if unit is SET
+    if (styleForm.value.unit === "SET" && styleForm.value.t_b) {
+      let baseStyleNo = styleForm.value.style_no.replace(/\(T1\)|\(B1\)$/, "");
+      styleForm.value.style_no = formatStyleNo(
+        baseStyleNo,
+        styleForm.value.t_b
+      );
+    }
+
+    const data = await styleService.createStyle(styleForm.value);
+    if (data.success) {
+      await fetchStyles();
+      closeModal();
+      toast.success("Style berhasil dibuat");
+    } else {
+      toast.error("Gagal membuat style: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error creating style:", error);
+    toast.error("Terjadi kesalahan saat membuat style");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const updateStyle = async () => {
+  submitting.value = true;
+  try {
+    // Format the style number if unit is SET
+    if (styleForm.value.unit === "SET" && styleForm.value.t_b) {
+      let baseStyleNo = styleForm.value.style_no.replace(/\(T1\)|\(B1\)$/, "");
+      styleForm.value.style_no = formatStyleNo(
+        baseStyleNo,
+        styleForm.value.t_b
+      );
+    }
+
+    const data = await styleService.updateStyle(
+      styleForm.value.style_no,
+      styleForm.value
+    );
+    if (data.success) {
+      await fetchStyles();
+      closeModal();
+      toast.success("Style berhasil diperbarui");
+    } else {
+      toast.error("Gagal memperbarui style: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error updating style:", error);
+    toast.error("Terjadi kesalahan saat memperbarui style");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const softDeleteStyle = (style) => {
+  styleToDelete.value = style;
+  showSoftDeleteModal.value = true;
+};
+
+const confirmSoftDelete = async () => {
+  submitting.value = true;
+  try {
+    const data = await styleService.deleteStyle(styleToDelete.value.style_no);
+    if (data.success) {
+      await fetchStyles();
+      showSoftDeleteModal.value = false;
+      toast.success("Style berhasil dinonaktifkan");
+    } else {
+      toast.error("Gagal menonaktifkan style: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error soft deleting style:", error);
+    toast.error("Terjadi kesalahan saat menonaktifkan style");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const showHardDeleteConfirm = (style) => {
+  styleToHardDelete.value = style;
+  showHardDeleteModal.value = true;
+};
+
+const confirmHardDelete = async () => {
+  submitting.value = true;
+  try {
+    const data = await styleService.hardDeleteStyle(
+      styleToHardDelete.value.style_no
+    );
+    if (data.success) {
+      await fetchStyles();
+      showHardDeleteModal.value = false;
+      toast.success("Style berhasil dihapus secara permanen");
+    } else {
+      toast.error("Gagal menghapus style: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error hard deleting style:", error);
+    toast.error("Terjadi kesalahan saat menghapus style");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const activateStyle = async (style) => {
+  submitting.value = true;
+  try {
+    const data = await styleService.activateStyle(style.style_no);
+    if (data.success) {
+      await fetchStyles();
+      toast.success("Style berhasil diaktifkan");
+    } else {
+      toast.error("Gagal mengaktifkan style: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error activating style:", error);
+    toast.error("Terjadi kesalahan saat mengaktifkan style");
+  } finally {
+    submitting.value = false;
+  }
+};
+</script>
+
 <template>
   <AuthenticatedLayout :user="authStore.user">
     <div class="space-y-6">
@@ -735,439 +1171,3 @@
     </div>
   </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, computed, onMounted, watch } from "vue";
-import { useToast } from "vue-toastification";
-import { useAuthStore } from "../stores/auth";
-import { styleService, buyerService } from "../services/api";
-import AuthenticatedLayout from "../layouts/AuthenticatedLayout.vue";
-
-// Add click-outside directive
-const vClickOutside = {
-  mounted(el, binding) {
-    el._clickOutside = (event) => {
-      if (!(el === event.target || el.contains(event.target))) {
-        binding.value(event);
-      }
-    };
-    document.addEventListener("click", el._clickOutside);
-  },
-  unmounted(el) {
-    document.removeEventListener("click", el._clickOutside);
-  },
-};
-
-const authStore = useAuthStore();
-const toast = useToast();
-
-// Reactive data
-const styles = ref([]);
-const buyers = ref([]); // Add buyers list
-const buyerSearchQuery = ref(""); // Add buyer search query
-const showBuyerDropdown = ref(false); // Control dropdown visibility
-const loading = ref(false);
-const submitting = ref(false);
-const searchQuery = ref("");
-
-// Modal states
-const showCreateModal = ref(false);
-const showEditModal = ref(false);
-const showDeleteModal = ref(false);
-const showSoftDeleteModal = ref(false);
-const showHardDeleteModal = ref(false);
-
-// Form data - Moved up before any methods that use it
-const styleForm = ref({
-  style_no: "",
-  buyer_short_name: "",
-  unit: "",
-  t_b: "",
-  sub_category: "",
-  fabric: "",
-  smv_accum: null,
-});
-
-const styleToDelete = ref(null);
-const styleToHardDelete = ref(null);
-
-// Pagination and page size options
-const pageSizeOptions = [10, 20, 50, 100, -1];
-const pageSize = ref(10);
-const currentPage = ref(1);
-const totalItems = ref(0);
-const totalPages = ref(0);
-
-// Add debounced search method
-const debouncedSearch = ref(null);
-
-const handleSearch = () => {
-  if (debouncedSearch.value) {
-    clearTimeout(debouncedSearch.value);
-  }
-  debouncedSearch.value = setTimeout(() => {
-    currentPage.value = 1; // Reset to first page when searching
-    fetchStyles();
-  }, 300);
-};
-
-// Watch for search query changes
-watch(searchQuery, () => {
-  handleSearch();
-});
-
-// Methods
-const handlePageSizeChange = async () => {
-  currentPage.value = 1; // Reset to first page when changing page size
-  if (pageSize.value === -1) {
-    try {
-      const response = await styleService.getAllStyles(1, 1);
-      if (response.success) {
-        pageSize.value = response.data.total_items;
-      }
-    } catch (error) {
-      console.error("Error getting total count:", error);
-      pageSize.value = 100; // Fallback to 100 if error
-    }
-  }
-  fetchStyles();
-};
-
-const fetchStyles = async () => {
-  loading.value = true;
-  try {
-    const data = await styleService.getAllStyles(
-      currentPage.value,
-      pageSize.value === -1 ? 999999 : pageSize.value,
-      searchQuery.value
-    );
-    if (data.success) {
-      totalItems.value = data.data.total_items;
-      totalPages.value = data.data.total_pages;
-      currentPage.value = data.data.current_page;
-      pageSize.value = data.data.page_size;
-      styles.value = data.data.styles || [];
-    } else {
-      console.error("Failed to fetch styles:", data.message);
-      toast.error("Gagal memuat data style: " + data.message);
-    }
-  } catch (error) {
-    console.error("Error fetching styles:", error);
-    toast.error("Terjadi kesalahan saat memuat data style");
-  } finally {
-    loading.value = false;
-  }
-};
-
-// Add method to fetch buyers
-const fetchBuyers = async (search = "") => {
-  try {
-    const data = await buyerService.getAllBuyers(1, 100, search);
-    if (data.success) {
-      buyers.value = data.data.buyers || [];
-    } else {
-      console.error("Failed to fetch buyers:", data.message);
-    }
-  } catch (error) {
-    console.error("Error fetching buyers:", error);
-  }
-};
-
-// Add method to handle buyer search
-const handleBuyerSearch = () => {
-  fetchBuyers(buyerSearchQuery.value);
-};
-
-// Modify the selectBuyer method
-const selectBuyer = (buyer) => {
-  styleForm.value.buyer_short_name = buyer.short_name;
-  buyerSearchQuery.value = `${buyer.short_name} - ${buyer.long_name}`; // Update search input to show selected buyer
-  showBuyerDropdown.value = false;
-};
-
-// Add method to clear buyer selection
-const clearBuyerSelection = () => {
-  styleForm.value.buyer_short_name = "";
-  buyerSearchQuery.value = "";
-};
-
-// Add watcher for buyer search
-watch(buyerSearchQuery, () => {
-  handleBuyerSearch();
-});
-
-// Add method to format style number
-const formatStyleNo = (styleNo, tb) => {
-  if (tb) {
-    return `${styleNo}(${tb})`;
-  }
-  return styleNo;
-};
-
-// Add watcher for T/B changes
-watch(
-  () => styleForm.value.t_b,
-  (newTB) => {
-    if (styleForm.value.style_no && styleForm.value.unit === "SET") {
-      // Remove any existing T/B suffix first
-      let baseStyleNo = styleForm.value.style_no.replace(/\(T1\)|\(B1\)$/, "");
-      styleForm.value.style_no = formatStyleNo(baseStyleNo, newTB);
-    }
-  }
-);
-
-// Add watcher for unit changes
-watch(
-  () => styleForm.value.unit,
-  (newUnit) => {
-    if (newUnit !== "SET") {
-      // Remove T/B value and any T/B suffix from style number
-      styleForm.value.t_b = "";
-      if (styleForm.value.style_no) {
-        styleForm.value.style_no = styleForm.value.style_no.replace(
-          /\(T1\)|\(B1\)$/,
-          ""
-        );
-      }
-    }
-  }
-);
-
-// Lifecycle
-onMounted(() => {
-  fetchStyles();
-});
-
-// Add pagination methods
-const prevPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value--;
-    fetchStyles();
-  }
-};
-
-const nextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++;
-    fetchStyles();
-  }
-};
-
-const goToPage = (page) => {
-  if (page !== "..." && page !== currentPage.value) {
-    currentPage.value = page;
-    fetchStyles();
-  }
-};
-
-// Add computed property for displayed pages
-const displayedPages = computed(() => {
-  const delta = 2;
-  const range = [];
-  const rangeWithDots = [];
-  let l;
-
-  for (let i = 1; i <= totalPages.value; i++) {
-    if (
-      i === 1 ||
-      i === totalPages.value ||
-      (i >= currentPage.value - delta && i <= currentPage.value + delta)
-    ) {
-      range.push(i);
-    }
-  }
-
-  for (let i of range) {
-    if (l) {
-      if (i - l === 2) {
-        rangeWithDots.push(l + 1);
-      } else if (i - l !== 1) {
-        rangeWithDots.push("...");
-      }
-    }
-    rangeWithDots.push(i);
-    l = i;
-  }
-
-  return rangeWithDots;
-});
-
-// Methods for style operations
-const openCreateModal = () => {
-  styleForm.value = {
-    style_no: "",
-    buyer_short_name: "",
-    unit: "",
-    t_b: "",
-    sub_category: "",
-    fabric: "",
-    smv_accum: null,
-  };
-  buyerSearchQuery.value = "";
-  fetchBuyers();
-  showCreateModal.value = true;
-};
-
-const editStyle = (style) => {
-  // Remove T/B suffix from style number for form
-  const baseStyleNo = style.style_no.replace(/\(T1\)|\(B1\)$/, "");
-  styleForm.value = {
-    ...style,
-    style_no: baseStyleNo,
-  };
-
-  // Find the buyer to get the long name
-  fetchBuyers().then(() => {
-    const selectedBuyer = buyers.value.find(
-      (b) => b.short_name === style.buyer_short_name
-    );
-    if (selectedBuyer) {
-      buyerSearchQuery.value = `${selectedBuyer.short_name} - ${selectedBuyer.long_name}`;
-    } else {
-      buyerSearchQuery.value = style.buyer_short_name;
-    }
-  });
-  showEditModal.value = true;
-};
-
-const closeModal = () => {
-  showCreateModal.value = false;
-  showEditModal.value = false;
-  styleForm.value = {
-    style_no: "",
-    buyer_short_name: "",
-    unit: "",
-    t_b: "",
-    sub_category: "",
-    fabric: "",
-    smv_accum: null,
-  };
-};
-
-const createStyle = async () => {
-  submitting.value = true;
-  try {
-    // Format the style number if unit is SET
-    if (styleForm.value.unit === "SET" && styleForm.value.t_b) {
-      let baseStyleNo = styleForm.value.style_no.replace(/\(T1\)|\(B1\)$/, "");
-      styleForm.value.style_no = formatStyleNo(
-        baseStyleNo,
-        styleForm.value.t_b
-      );
-    }
-
-    const data = await styleService.createStyle(styleForm.value);
-    if (data.success) {
-      await fetchStyles();
-      closeModal();
-      toast.success("Style berhasil dibuat");
-    } else {
-      toast.error("Gagal membuat style: " + data.message);
-    }
-  } catch (error) {
-    console.error("Error creating style:", error);
-    toast.error("Terjadi kesalahan saat membuat style");
-  } finally {
-    submitting.value = false;
-  }
-};
-
-const updateStyle = async () => {
-  submitting.value = true;
-  try {
-    // Format the style number if unit is SET
-    if (styleForm.value.unit === "SET" && styleForm.value.t_b) {
-      let baseStyleNo = styleForm.value.style_no.replace(/\(T1\)|\(B1\)$/, "");
-      styleForm.value.style_no = formatStyleNo(
-        baseStyleNo,
-        styleForm.value.t_b
-      );
-    }
-
-    const data = await styleService.updateStyle(
-      styleForm.value.style_no,
-      styleForm.value
-    );
-    if (data.success) {
-      await fetchStyles();
-      closeModal();
-      toast.success("Style berhasil diperbarui");
-    } else {
-      toast.error("Gagal memperbarui style: " + data.message);
-    }
-  } catch (error) {
-    console.error("Error updating style:", error);
-    toast.error("Terjadi kesalahan saat memperbarui style");
-  } finally {
-    submitting.value = false;
-  }
-};
-
-const softDeleteStyle = (style) => {
-  styleToDelete.value = style;
-  showSoftDeleteModal.value = true;
-};
-
-const confirmSoftDelete = async () => {
-  submitting.value = true;
-  try {
-    const data = await styleService.deleteStyle(styleToDelete.value.style_no);
-    if (data.success) {
-      await fetchStyles();
-      showSoftDeleteModal.value = false;
-      toast.success("Style berhasil dinonaktifkan");
-    } else {
-      toast.error("Gagal menonaktifkan style: " + data.message);
-    }
-  } catch (error) {
-    console.error("Error soft deleting style:", error);
-    toast.error("Terjadi kesalahan saat menonaktifkan style");
-  } finally {
-    submitting.value = false;
-  }
-};
-
-const showHardDeleteConfirm = (style) => {
-  styleToHardDelete.value = style;
-  showHardDeleteModal.value = true;
-};
-
-const confirmHardDelete = async () => {
-  submitting.value = true;
-  try {
-    const data = await styleService.hardDeleteStyle(
-      styleToHardDelete.value.style_no
-    );
-    if (data.success) {
-      await fetchStyles();
-      showHardDeleteModal.value = false;
-      toast.success("Style berhasil dihapus secara permanen");
-    } else {
-      toast.error("Gagal menghapus style: " + data.message);
-    }
-  } catch (error) {
-    console.error("Error hard deleting style:", error);
-    toast.error("Terjadi kesalahan saat menghapus style");
-  } finally {
-    submitting.value = false;
-  }
-};
-
-const activateStyle = async (style) => {
-  submitting.value = true;
-  try {
-    const data = await styleService.activateStyle(style.style_no);
-    if (data.success) {
-      await fetchStyles();
-      toast.success("Style berhasil diaktifkan");
-    } else {
-      toast.error("Gagal mengaktifkan style: " + data.message);
-    }
-  } catch (error) {
-    console.error("Error activating style:", error);
-    toast.error("Terjadi kesalahan saat mengaktifkan style");
-  } finally {
-    submitting.value = false;
-  }
-};
-</script>

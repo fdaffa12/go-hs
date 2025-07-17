@@ -127,13 +127,11 @@
         class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6"
       >
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1"
-              >Factory</label
-            >
+          <div class="form-group">
+            <label class="form-label">Factory</label>
             <select
               v-model="filters.factory"
-              class="form-select w-full border border-gray-300"
+              class="form-select h-[38px]"
               @change="handleFilterChange"
             >
               <option value="">Pilih Factory</option>
@@ -142,14 +140,12 @@
               <option value="F3">F3</option>
             </select>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1"
-              >Tanggal</label
-            >
+          <div class="form-group">
+            <label class="form-label">Tanggal</label>
             <input
               type="date"
               v-model="filters.date"
-              class="form-input w-full"
+              class="form-input h-[38px]"
               @change="handleFilterChange"
             />
           </div>
@@ -250,7 +246,7 @@
                 <td class="px-6 py-4 whitespace-nowrap">
                   <select
                     v-model="row.type"
-                    class="form-select w-full"
+                    class="form-select"
                     @change="handleNewRowTypeChange(row)"
                   >
                     <option value="assembly">Assembly</option>
@@ -259,7 +255,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div v-if="row.type === 'assembly'">
-                    <select v-model="row.line" class="form-select w-full">
+                    <select v-model="row.line" class="form-select">
                       <option value="">Pilih Line</option>
                       <option v-for="line in lines" :key="line" :value="line">
                         {{ line }}
@@ -269,7 +265,7 @@
                   <input
                     v-else
                     v-model="row.line"
-                    class="form-input w-full"
+                    class="form-input"
                     disabled
                     value="AREA"
                   />
@@ -277,7 +273,7 @@
                 <td class="px-6 py-4 whitespace-nowrap">
                   <select
                     v-model="row.buyer_short_name"
-                    class="form-select w-full"
+                    class="form-select"
                     @change="handleBuyerChange(row)"
                   >
                     <option value="">Pilih Buyer</option>
@@ -293,7 +289,7 @@
                 <td class="px-6 py-4 whitespace-nowrap">
                   <select
                     v-model="row.style_no"
-                    class="form-select w-full"
+                    class="form-select"
                     :disabled="!row.buyer_short_name"
                   >
                     <option value="">Pilih Style</option>
@@ -310,7 +306,7 @@
                   <input
                     v-model.number="row.number_of_mp"
                     type="number"
-                    class="form-input w-full"
+                    class="form-input"
                     placeholder="MP"
                   />
                 </td>
@@ -318,7 +314,7 @@
                   <input
                     v-model="row.start_date"
                     type="date"
-                    class="form-input w-full"
+                    class="form-input"
                     @change="handleStartDateChange(row)"
                   />
                 </td>
@@ -415,7 +411,7 @@
                   <div v-if="schedule.isEditing">
                     <select
                       v-model="schedule.editedType"
-                      class="form-select w-full"
+                      class="form-select"
                       @change="handleTypeChange(schedule)"
                     >
                       <option value="assembly">Assembly</option>
@@ -429,10 +425,7 @@
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div v-if="schedule.isEditing">
                     <div v-if="schedule.editedType === 'assembly'">
-                      <select
-                        v-model="schedule.editedLine"
-                        class="form-select w-full"
-                      >
+                      <select v-model="schedule.editedLine" class="form-select">
                         <option value="">Pilih Line</option>
                         <option v-for="line in lines" :key="line" :value="line">
                           {{ line }}
@@ -442,7 +435,7 @@
                     <input
                       v-else
                       v-model="schedule.editedLine"
-                      class="form-input w-full"
+                      class="form-input"
                       disabled
                       value="AREA"
                     />
@@ -455,7 +448,7 @@
                   <div v-if="schedule.isEditing">
                     <select
                       v-model="schedule.editedBuyerShortName"
-                      class="form-select w-full"
+                      class="form-select"
                       @change="handleBuyerChangeInline(schedule)"
                     >
                       <option value="">Pilih Buyer</option>
@@ -476,7 +469,7 @@
                   <div v-if="schedule.isEditing">
                     <select
                       v-model="schedule.editedStyleNo"
-                      class="form-select w-full"
+                      class="form-select"
                       :disabled="!schedule.editedBuyerShortName"
                     >
                       <option value="">Pilih Style</option>
@@ -501,7 +494,7 @@
                     <input
                       v-model.number="schedule.editedNumberOfMp"
                       type="number"
-                      class="form-input w-full"
+                      class="form-input"
                       placeholder="MP"
                       min="1"
                     />
@@ -516,7 +509,7 @@
                     <input
                       v-model="schedule.editedStartDate"
                       type="date"
-                      class="form-input w-full"
+                      class="form-input"
                       @change="handleEditStartDateChange(schedule)"
                     />
                   </div>
@@ -1910,36 +1903,4 @@ const handleNewRowTypeChange = (row) => {
 };
 </script>
 
-<style scoped>
-.btn {
-  @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200;
-}
-
-.btn-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700;
-}
-
-.btn-secondary {
-  @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
-}
-
-.form-select {
-  @apply mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg;
-}
-
-.form-input {
-  @apply mt-1 block w-full px-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg;
-}
-
-.btn-warning {
-  @apply bg-yellow-600 text-white hover:bg-yellow-700;
-}
-
-.btn-success {
-  @apply bg-green-600 text-white hover:bg-green-700;
-}
-
-.btn-danger {
-  @apply bg-red-600 text-white hover:bg-red-700;
-}
-</style>
+<style scoped></style>

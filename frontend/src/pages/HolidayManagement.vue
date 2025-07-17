@@ -1,53 +1,22 @@
 <template>
   <AuthenticatedLayout :user="authStore.user">
     <div class="space-y-6">
-      <!-- Header -->
-      <div
-        class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6"
-      >
+      <!-- Update page header -->
+      <div class="page-section">
         <div
           class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
         >
           <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">
-              Manajemen Hari Libur
-            </h1>
-            <p class="mt-1 text-sm text-gray-600">
-              Kelola hari libur dalam sistem
-            </p>
+            <h1 class="page-title">Manajemen Hari Libur</h1>
+            <p class="page-subtitle">Kelola hari libur dalam sistem</p>
           </div>
-          <button
-            @click="openCreateModal"
-            class="btn btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
-          >
-            <svg
-              class="w-5 h-5 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div class="button-group">
+            <button
+              @click="openCreateModal"
+              class="btn btn-primary flex items-center justify-center gap-2"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              ></path>
-            </svg>
-            <span class="hidden sm:inline">Tambah Hari Libur</span>
-            <span class="sm:hidden">Tambah</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Search and Filter -->
-      <div
-        class="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4"
-      >
-        <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <div class="flex-1">
-            <div class="relative">
               <svg
-                class="w-4 h-4 sm:w-5 sm:h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                class="w-5 h-5 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -56,20 +25,43 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                 ></path>
               </svg>
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Cari hari libur..."
-                class="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+              <span class="hidden sm:inline">Tambah Hari Libur</span>
+              <span class="sm:hidden">Tambah</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Update search section -->
+      <div class="page-section">
+        <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div class="search-input-wrapper">
+            <svg
+              class="search-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              ></path>
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Cari hari libur..."
+              class="search-input"
+            />
           </div>
           <button
             @click="fetchHolidays"
-            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors w-full sm:w-auto"
+            class="btn btn-secondary flex items-center justify-center gap-2"
           >
             <svg
               class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0"
@@ -98,7 +90,7 @@
           <select
             v-model="pageSize"
             @change="handlePageSizeChange"
-            class="border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            class="form-select w-24"
           >
             <option v-for="size in pageSizeOptions" :key="size" :value="size">
               {{ size === -1 ? "Semua" : size }}
@@ -184,10 +176,10 @@
                 <td class="px-3 sm:px-6 py-3 sm:py-4">
                   <span
                     :class="[
-                      'px-2 py-1 text-xs rounded-full',
+                      'status-badge',
                       holiday.delete_status
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-green-100 text-green-800',
+                        ? 'status-badge-inactive'
+                        : 'status-badge-active',
                     ]"
                   >
                     {{ holiday.delete_status ? "Non-Aktif" : "Aktif" }}
@@ -284,11 +276,9 @@
         </div>
       </div>
 
-      <!-- Pagination -->
-      <div
-        class="mt-4 flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6"
-      >
-        <div class="flex justify-between flex-1 sm:hidden">
+      <!-- Update pagination -->
+      <div class="pagination-wrapper">
+        <div class="pagination-mobile">
           <button
             @click="prevPage"
             :disabled="currentPage === 1"
@@ -393,13 +383,10 @@
         </div>
       </div>
 
-      <!-- Create/Edit Holiday Modal -->
-      <div
-        v-if="showCreateModal || showEditModal"
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      >
-        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
-          <h3 class="text-lg sm:text-xl font-semibold mb-4">
+      <!-- Update modals -->
+      <div v-if="showCreateModal || showEditModal" class="modal-overlay">
+        <div class="modal-content">
+          <h3 class="modal-title">
             {{ showCreateModal ? "Buat Hari Libur Baru" : "Edit Hari Libur" }}
           </h3>
 
@@ -407,12 +394,11 @@
             @submit.prevent="
               showCreateModal ? createHoliday() : updateHoliday()
             "
+            class="form-layout"
           >
             <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1"
-                  >Tanggal</label
-                >
+              <div class="form-group">
+                <label class="form-label">Tanggal</label>
                 <input
                   v-model="holidayForm.holiday_date"
                   type="date"
@@ -421,10 +407,8 @@
                 />
               </div>
 
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1"
-                  >Nama Hari Libur</label
-                >
+              <div class="form-group">
+                <label class="form-label">Nama Hari Libur</label>
                 <input
                   v-model="holidayForm.holiday_name"
                   type="text"
@@ -435,10 +419,8 @@
                 />
               </div>
 
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1"
-                  >Tipe</label
-                >
+              <div class="form-group">
+                <label class="form-label">Tipe</label>
                 <select
                   v-model="holidayForm.holiday_type"
                   required
@@ -456,14 +438,14 @@
               <button
                 type="button"
                 @click="closeModal"
-                class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+                class="btn btn-secondary"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 :disabled="submitting"
-                class="px-4 py-2 text-sm sm:text-base bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+                class="btn btn-primary"
               >
                 {{
                   submitting
@@ -479,31 +461,28 @@
       </div>
 
       <!-- Soft Delete Confirmation Modal -->
-      <div
-        v-if="showSoftDeleteModal"
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      >
-        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
-          <h3 class="text-lg sm:text-xl font-semibold mb-4 text-yellow-600">
+      <div v-if="showSoftDeleteModal" class="modal-overlay">
+        <div class="modal-content">
+          <h3 class="modal-title modal-title-warning">
             Non-aktifkan Hari Libur
           </h3>
-          <p class="text-sm sm:text-base text-gray-700 mb-6">
+          <p class="modal-body">
             Apakah Anda yakin ingin menonaktifkan hari libur
             <strong>{{ holidayToDelete?.holiday_name }}</strong
             >? Hari libur yang dinonaktifkan masih dapat dilihat dalam sistem.
           </p>
 
-          <div class="flex flex-col sm:flex-row justify-end gap-3">
+          <div class="modal-footer">
             <button
               @click="showSoftDeleteModal = false"
-              class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+              class="btn btn-secondary"
             >
               Batal
             </button>
             <button
               @click="confirmSoftDelete"
               :disabled="submitting"
-              class="px-4 py-2 text-sm sm:text-base bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+              class="btn btn-warning"
             >
               {{ submitting ? "Menonaktifkan..." : "Non-aktifkan" }}
             </button>
@@ -512,32 +491,29 @@
       </div>
 
       <!-- Hard Delete Confirmation Modal -->
-      <div
-        v-if="showHardDeleteModal"
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      >
-        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
-          <h3 class="text-lg sm:text-xl font-semibold mb-4 text-red-600">
+      <div v-if="showHardDeleteModal" class="modal-overlay">
+        <div class="modal-content">
+          <h3 class="modal-title modal-title-danger">
             Hapus Permanen Hari Libur
           </h3>
-          <p class="text-sm sm:text-base text-gray-700 mb-6">
+          <p class="modal-body">
             Apakah Anda yakin ingin menghapus hari libur
             <strong>{{ holidayToHardDelete?.holiday_name }}</strong>
             secara permanen? Tindakan ini tidak dapat dibatalkan dan data akan
             dihapus dari sistem.
           </p>
 
-          <div class="flex flex-col sm:flex-row justify-end gap-3">
+          <div class="modal-footer">
             <button
               @click="showHardDeleteModal = false"
-              class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+              class="btn btn-secondary"
             >
               Batal
             </button>
             <button
               @click="confirmHardDelete"
               :disabled="submitting"
-              class="px-4 py-2 text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+              class="btn btn-danger"
             >
               {{ submitting ? "Menghapus..." : "Hapus Permanen" }}
             </button>
@@ -888,24 +864,4 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.btn {
-  @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200;
-}
-
-.btn-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700;
-}
-
-.btn-secondary {
-  @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
-}
-
-.form-select {
-  @apply mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg;
-}
-
-.form-input {
-  @apply mt-1 block w-full px-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg;
-}
-</style>
+<style scoped></style>
