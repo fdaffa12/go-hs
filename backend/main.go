@@ -34,6 +34,7 @@ func main() {
 	styleModel := models.NewStyleModel(db)
 	lineScheduleModel := models.NewLineScheduleModel(db)
 	holidayModel := models.NewHolidayModel(db)
+	sewNumProcessModel := models.NewSewNumProcessModel(db)
 
 	// Initialize controllers
 	authController := controllers.NewAuthController(userModel)
@@ -44,6 +45,8 @@ func main() {
 	styleController := controllers.NewStyleController(styleModel)
 	lineScheduleController := controllers.NewLineScheduleController(lineScheduleModel)
 	holidayController := controllers.NewHolidayController(holidayModel)
+	sewNumProcessController := controllers.NewSewNumProcessController(sewNumProcessModel)
+
 	// Initialize router
 	router := routes.NewRouter(
 		authController,
@@ -54,6 +57,7 @@ func main() {
 		styleController,
 		lineScheduleController,
 		holidayController,
+		sewNumProcessController,
 	)
 	mux := router.SetupRoutes()
 

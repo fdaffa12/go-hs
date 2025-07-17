@@ -731,4 +731,75 @@ export const holidayService = {
   },
 };
 
+// Sew Numbering Process Service
+export const sewNumProcessService = {
+  getAllProcesses: async (styleNo) => {
+    try {
+      const response = await api.get(
+        `/sew-num-process?style_no=${encodeURIComponent(styleNo)}`
+      );
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  bulkSave: async (processes) => {
+    try {
+      const response = await api.post("/sew-num-process", processes);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  deleteProcess: async (id) => {
+    try {
+      const response = await api.delete(`/sew-num-process?id=${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  bulkDelete: async (ids) => {
+    try {
+      const response = await api.post("/sew-num-process/bulk-delete", ids);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  activateProcess: async (id) => {
+    try {
+      const response = await api.put(`/sew-num-process/activate/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  hardDeleteProcess: async (id) => {
+    try {
+      const response = await api.delete(`/sew-num-process/hard-delete/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+};
+
 export default api;

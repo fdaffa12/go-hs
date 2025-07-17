@@ -255,6 +255,41 @@ func createTables() error {
 		}
 	}
 
+	// Add hs_sew_numprocess table
+	sewNumProcessTableSQL := `
+CREATE TABLE IF NOT EXISTS hs_sew_numprocess (
+	id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+	BUYER_SHORT_NAME varchar(12) NOT NULL,
+	STYLE_NO varchar(15) NOT NULL,
+	NO_PROCESS int(10) unsigned NOT NULL,
+	CATEGORY varchar(100) NOT NULL,
+	SUB_CATEGORY varchar(100) NOT NULL,
+	SMV_PROC_GSD float DEFAULT NULL,
+	SMV_PROC_EST float NOT NULL DEFAULT 0,
+	PROCESS_NAME_ENG varchar(100) DEFAULT NULL,
+	PROCESS_NAME_IND varchar(100) DEFAULT NULL,
+	MACHINE_CODE varchar(2) NOT NULL,
+	LINK_TO_1 int(11) unsigned DEFAULT NULL,
+	LINK_TO_2 int(11) DEFAULT NULL,
+	LINK_TO_3 int(11) DEFAULT NULL,
+	LINK_TO_4 int(11) DEFAULT NULL,
+	LINK_TO_5 int(11) DEFAULT NULL,
+	DELETE_STATUS int(11) NOT NULL DEFAULT 0,
+	created_at timestamp NULL DEFAULT NULL,
+	updated_at timestamp NULL DEFAULT NULL,
+	PRIMARY KEY (id),
+	KEY BUYER_SHORT_NAME_idx (BUYER_SHORT_NAME),
+	KEY STYLE_NO_idx (STYLE_NO),
+	FOREIGN KEY (BUYER_SHORT_NAME) REFERENCES hs_ord_buyer(BUYER_SHORT_NAME),
+	FOREIGN KEY (STYLE_NO) REFERENCES hs_ord_style(STYLE_NO)
+);
+`
+
+	_, err = db.Exec(sewNumProcessTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create hs_sew_numprocess table: %v", err)
+	}
+
 	return nil
 }
 

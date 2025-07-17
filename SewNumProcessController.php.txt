@@ -1,0 +1,567 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Style;
+use App\Models\SewNumProcess;
+use App\Http\Controllers\datatables;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\File;
+use App\Models\Module;
+use App\Models\UserAccess;
+
+class SewNumProcessController extends Controller
+{
+    private function checkAccess($permission)
+    {
+        $moduleId = Module::where('MODULE_NAME', 'NumProcess Management')->first()->MODULE_ID;
+        return UserAccess::where('USER_ID', Auth::user()->NIK)
+            ->where('MODULE_ID', $moduleId)
+            ->where('PERMISSION_TYPE', $permission)
+            ->exists();
+    }
+
+    public function index()
+    {
+        if (!$this->checkAccess('view')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $moduleId = Module::where('MODULE_NAME', 'NumProcess Management')->first()->MODULE_ID;
+        $userAccesses = UserAccess::where('USER_ID', Auth::user()->NIK)
+            ->where('MODULE_ID', $moduleId)
+            ->pluck('PERMISSION_TYPE')
+            ->toArray();
+
+        $styles = Style::all();
+        return view('sewnumprocess.index', compact('styles', 'userAccesses'));
+    }
+
+    public function fetchData(Request $request)
+    {
+        $styleNo = $request->style_no;
+
+        $numProcesses = SewNumProcess::where('STYLE_NO', $styleNo)
+            ->where(function ($query) {
+                if (Auth::user()->LEVEL != 3) {
+                    $query->where('DELETE_STATUS', 0);
+                }
+            })
+            ->orderBy('NO_PROCESS', 'asc')
+            ->get();
+
+        return response()->json($numProcesses);
+    }
+
+    public function delete(Request $request)
+    {
+        if (!$this->checkAccess('delete')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $styleNo = $request->input('style_no');
+        $noProcess = $request->input('no_process');
+
+        SewNumProcess::where('STYLE_NO', $styleNo)
+            ->where('NO_PROCESS', $noProcess)
+            ->delete();
+
+        Log::channel('num_process')->info("Process Deleted by user: " . Auth::user()->NAME, [
+            'STYLE_NO' => $styleNo,
+            'NO_PROCESS' => $noProcess,
+        ]);
+
+        return response()->json(['success' => 'Data has been deleted successfully!']);
+    }
+
+    public function bulkSave(Request $request)
+    {
+        if (!$this->checkAccess('create')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $changes = $request->input('changes');
+
+            // Validasi dasar sebelum memproses perubahan
+            if (empty($changes)) {
+                return response()->json([
+                    'error' => 'Data Kosong',
+                    'message' => 'Tidak ada data yang akan disimpan. Mohon periksa kembali data Anda.'
+                ], 400);
+            }
+
+            // Validasi duplikasi NO_PROCESS
+            $processNumbers = [];
+            foreach ($changes as $change) {
+                if ($change['action'] === 'edit' || $change['action'] === 'add') {
+                    // Validasi data wajib
+                    if (empty($change['no_process'])) {
+                        return response()->json([
+                            'error' => 'Data Tidak Lengkap',
+                            'message' => 'Nomor Proses wajib diisi. Mohon lengkapi data.'
+                        ], 400);
+                    }
+
+                    if (empty($change['style_no'])) {
+                        return response()->json([
+                            'error' => 'Data Tidak Lengkap',
+                            'message' => 'Style Number wajib diisi. Mohon lengkapi data.'
+                        ], 400);
+                    }
+
+                    $key = $change['style_no'] . '-' . $change['no_process'];
+
+                    // Validasi duplikasi dalam array perubahan
+                    if (in_array($key, $processNumbers)) {
+                        return response()->json([
+                            'error' => 'Nomor Proses Duplikat',
+                            'message' => "Nomor Proses {$change['no_process']} untuk Style {$change['style_no']} telah digunakan. Mohon gunakan nomor proses yang berbeda."
+                        ], 400);
+                    }
+
+                    // Validasi format SMV
+                    if (!empty($change['smv_proc_gsd']) && !preg_match('/^\d+(\.\d{0,4})?$/', $change['smv_proc_gsd'])) {
+                        return response()->json([
+                            'error' => 'Format SMV Tidak Valid',
+                            'message' => 'Jika diisi, nilai SMV Proc GSD harus berupa angka dengan maksimal 4 angka desimal (Contoh: 12.3456)'
+                        ], 400);
+                    }
+
+                    if (!empty($change['smv_proc_est']) && !preg_match('/^\d+(\.\d{0,4})?$/', $change['smv_proc_est'])) {
+                        return response()->json([
+                            'error' => 'Format SMV Tidak Valid',
+                            'message' => 'Nilai SMV Proc EST harus berupa angka dengan maksimal 4 angka desimal (Contoh: 12.3456)'
+                        ], 400);
+                    }
+
+                    // Validasi duplikasi di database
+                    $existingProcess = SewNumProcess::where('STYLE_NO', $change['style_no'])
+                        ->where('NO_PROCESS', $change['no_process'])
+                        ->first();
+
+                    if ($existingProcess && (!isset($change['original_no_process']) || $change['original_no_process'] != $change['no_process'])) {
+                        return response()->json([
+                            'error' => 'Nomor Proses Sudah Ada',
+                            'message' => "Nomor Proses {$change['no_process']} untuk Style {$change['style_no']} sudah terdaftar dalam database. Silakan gunakan nomor proses lain."
+                        ], 400);
+                    }
+
+                    $processNumbers[] = $key;
+                }
+            }
+
+            foreach ($changes as $change) {
+                $logAction = '';
+                $logData = [];
+
+                if ($change['action'] === 'edit' || $change['action'] === 'add') {
+                    // Pesan untuk nomor proses yang kosong
+                    if (empty($change['no_process'])) {
+                        return response()->json([
+                            'error' => 'Nomor Proses Wajib Diisi',
+                            'message' => 'Mohon lengkapi Nomor Proses sebelum menyimpan data.'
+                        ], 400);
+                    }
+
+                    // Pesan untuk format SMV yang tidak valid
+                    if (
+                        (!empty($change['smv_proc_gsd']) && !preg_match('/^\d+(\.\d{0,4})?$/', $change['smv_proc_gsd'])) ||
+                        (!empty($change['smv_proc_est']) && !preg_match('/^\d+(\.\d{0,4})?$/', $change['smv_proc_est']))
+                    ) {
+                        return response()->json([
+                            'error' => 'Format SMV Tidak Valid',
+                            'message' => 'Jika diisi, nilai SMV Proc GSD dan SMV Proc EST harus berupa angka dengan maksimal 4 angka desimal (Contoh: 12.3456).'
+                        ], 400);
+                    }
+
+                    // Tambahkan validasi machine_code setelah validasi SMV
+                    if (empty($change['machine_code'])) {
+                        return response()->json([
+                            'error' => 'Data Tidak Lengkap',
+                            'message' => 'Kode Mesin wajib diisi. Mohon lengkapi data.'
+                        ], 400);
+                    }
+
+                    // Validasi format machine_code (hanya huruf, angka, dan tanda hubung)
+                    if (!preg_match('/^[A-Za-z0-9\-]+$/', $change['machine_code'])) {
+                        return response()->json([
+                            'error' => 'Format Kode Mesin Tidak Valid',
+                            'message' => 'Kode Mesin hanya boleh berisi huruf, angka, dan tanda hubung (-)'
+                        ], 400);
+                    }
+
+                    // Validasi panjang machine_code (misalnya maksimal 20 karakter)
+                    if (strlen($change['machine_code']) > 20) {
+                        return response()->json([
+                            'error' => 'Kode Mesin Terlalu Panjang',
+                            'message' => 'Kode Mesin tidak boleh lebih dari 20 karakter'
+                        ], 400);
+                    }
+
+                    $existingEntry = SewNumProcess::where('STYLE_NO', $change['style_no'])
+                        ->where('NO_PROCESS', $change['original_no_process'])
+                        ->first();
+
+                    if ($existingEntry && $change['original_no_process'] !== $change['no_process']) {
+                        $existingEntry->delete();
+                        $logAction = 'Process Updated';
+                    } elseif (!$existingEntry) {
+                        $logAction = 'Process Added';
+                    } else {
+                        $logAction = 'Process Updated';
+                    }
+
+                    $savedProcess = SewNumProcess::updateOrCreate(
+                        [
+                            'STYLE_NO' => $change['style_no'],
+                            'NO_PROCESS' => $change['no_process'],
+                        ],
+                        [
+                            'SMV_PROC_GSD' => !empty($change['smv_proc_gsd']) ? $change['smv_proc_gsd'] : null,
+                            'SMV_PROC_EST' => $change['smv_proc_est'],
+                            'PROCESS_NAME_ENG' => $change['process_name_eng'] ?? null,
+                            'PROCESS_NAME_IND' => $change['process_name_ind'] ?? null,
+                            'MACHINE_CODE' => $change['machine_code'],
+                            'BUYER_SHORT_NAME' => $change['buyer_short_name'],
+                            'CATEGORY' => $change['category'],
+                            'SUB_CATEGORY' => $change['sub_category'],
+                        ]
+                    );
+
+                    if ($savedProcess->wasRecentlyCreated || $savedProcess->wasChanged()) {
+                        $logData = [
+                            'STYLE_NO' => $savedProcess->STYLE_NO,
+                            'NO_PROCESS' => $savedProcess->NO_PROCESS,
+                            'SMV_PROC_GSD' => $savedProcess->SMV_PROC_GSD,
+                            'SMV_PROC_EST' => $savedProcess->SMV_PROC_EST,
+                            'PROCESS_NAME_ENG' => $savedProcess->PROCESS_NAME_ENG,
+                            'PROCESS_NAME_IND' => $savedProcess->PROCESS_NAME_IND,
+                            'MACHINE_CODE' => $savedProcess->MACHINE_CODE,
+                            'BUYER_SHORT_NAME' => $savedProcess->BUYER_SHORT_NAME,
+                            'CATEGORY' => $savedProcess->CATEGORY,
+                            'SUB_CATEGORY' => $savedProcess->SUB_CATEGORY,
+                        ];
+
+                        Log::channel('num_process')->info("{$logAction} by user: " . Auth::user()->NAME, $logData);
+                    }
+                } elseif ($change['action'] === 'delete') {
+                    SewNumProcess::where('STYLE_NO', $change['style_no'])
+                        ->where('NO_PROCESS', $change['no_process'])
+                        ->delete();
+
+                    Log::channel('num_process')->info('Process Deleted by user: ' . Auth::user()->NAME, [
+                        'STYLE_NO' => $change['style_no'],
+                        'NO_PROCESS' => $change['no_process'],
+                    ]);
+                }
+            }
+
+            return response()->json(['success' => true, 'message' => 'All changes have been saved successfully!']);
+        } catch (QueryException $e) {
+            if ($e->getCode() == '22003') {
+                return response()->json([
+                    'error' => 'Nilai Di Luar Batas',
+                    'message' => 'Nilai yang dimasukkan terlalu besar atau terlalu kecil. Mohon periksa kembali nilai pada semua kolom angka.'
+                ], 400);
+            }
+
+            Log::error('Database Error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Kesalahan Database',
+                'message' => 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi atau hubungi administrator jika masalah berlanjut.'
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error('General Error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Kesalahan Sistem',
+                'message' => 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi atau hubungi administrator.'
+            ], 500);
+        }
+    }
+
+    public function import(Request $request)
+    {
+        if (!$this->checkAccess('import')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $importData = $request->input('data');
+        $forceImport = $request->input('force_import', false);
+        $allowedColumns = ['style_no', 'buyer_short_name', 'no_process', 'category', 'sub_category', 'smv_proc_gsd', 'smv_proc_est', 'process_name_eng', 'process_name_ind', 'machine_code'];
+
+        // Definisi category yang diperbolehkan
+        $allowedCategories = ['SUPPORT PART', 'ASSEMBLY PART'];
+
+        try {
+            // Validasi category terlebih dahulu
+            foreach ($importData as $index => $data) {
+                $category = strtoupper(trim($data['category']));
+                if (!in_array($category, $allowedCategories)) {
+                    return response()->json([
+                        'error' => "Invalid category '{$data['category']}' at row " . ($index + 1) . ". Only 'SUPPORT PART' and 'ASSEMBLY PART' are allowed.",
+                        'row' => $index + 1
+                    ], 400);
+                }
+            }
+
+            // Kumpulkan semua style numbers untuk validasi
+            $styleNumbers = array_unique(array_column($importData, 'style_no'));
+
+            // Ambil data style dan buyer yang valid dari database
+            $validStyles = Style::whereIn('STYLE_NO', $styleNumbers)
+                ->where('DELETE_STATUS', '!=', 1)
+                ->with('buyer')
+                ->get()
+                ->keyBy('STYLE_NO');
+
+            // Cek existing processes sebelum import
+            $existingProcesses = [];
+            foreach ($importData as $data) {
+                $existingProcess = SewNumProcess::where('STYLE_NO', $data['style_no'])
+                    ->where('NO_PROCESS', $data['no_process'])
+                    ->first();
+
+                if ($existingProcess) {
+                    $existingProcesses[] = [
+                        'style_no' => $data['style_no'],
+                        'no_process' => $data['no_process'],
+                        'current_data' => [
+                            'process_name_eng' => $existingProcess->PROCESS_NAME_ENG,
+                            'process_name_ind' => $existingProcess->PROCESS_NAME_IND,
+                            'smv_proc_gsd' => $existingProcess->SMV_PROC_GSD,
+                            'smv_proc_est' => $existingProcess->SMV_PROC_EST,
+                            'machine_code' => $existingProcess->MACHINE_CODE,
+                            'category' => $existingProcess->CATEGORY
+                        ]
+                    ];
+                }
+            }
+
+            // Jika ada proses yang sudah ada dan belum force import
+            if (!empty($existingProcesses) && !$forceImport) {
+                return response()->json([
+                    'warning' => 'Existing processes found',
+                    'existing_processes' => $existingProcesses,
+                    'message' => 'Some processes already exist. Do you want to continue and overwrite them?'
+                ], 409);
+            }
+
+            // Lanjutkan dengan import jika tidak ada existing processes atau force import = true
+            foreach ($importData as $index => $data) {
+                $filteredData = array_intersect_key($data, array_flip($allowedColumns));
+
+                // Validasi dasar
+                if (
+                    empty($filteredData['no_process']) ||
+                    empty($filteredData['process_name_ind'])
+                ) {
+                    return response()->json([
+                        'error' => 'No Process and Process Name IND are required fields.',
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                // Validasi category lagi (untuk memastikan)
+                $category = strtoupper(trim($filteredData['category']));
+                if (!in_array($category, $allowedCategories)) {
+                    return response()->json([
+                        'error' => "Invalid category '{$filteredData['category']}'. Only 'SUPPORT PART' and 'ASSEMBLY PART' are allowed.",
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                // Validasi numeric
+                if (
+                    (!empty($filteredData['smv_proc_gsd']) && !is_numeric($filteredData['smv_proc_gsd'])) ||
+                    !is_numeric($filteredData['smv_proc_est'])
+                ) {
+                    return response()->json([
+                        'error' => 'SMV Proc GSD (jika diisi) dan SMV Proc EST harus berupa angka.',
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                $styleNo = $filteredData['style_no'];
+                if (!isset($validStyles[$styleNo])) {
+                    return response()->json([
+                        'error' => "Style number '{$styleNo}' is not valid or inactive.",
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                $style = $validStyles[$styleNo];
+                $validBuyer = $style->buyer;
+
+                if (!$validBuyer) {
+                    return response()->json([
+                        'error' => "No buyer found for style '{$styleNo}'.",
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                // Validasi buyer match dengan style
+                if (strtoupper($filteredData['buyer_short_name']) !== $validBuyer->BUYER_SHORT_NAME) {
+                    return response()->json([
+                        'error' => "Buyer '{$filteredData['buyer_short_name']}' does not match with style '{$styleNo}'. Expected buyer: {$validBuyer->BUYER_SHORT_NAME}",
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                // Validasi format NO_PROCESS
+                if (!preg_match('/^\d+(\.\d{0,4})?$/', $filteredData['no_process'])) {
+                    return response()->json([
+                        'error' => "Invalid No Process format. Must be numeric with up to 4 decimal places.",
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                // Validasi SMV format
+                if (
+                    (!empty($filteredData['smv_proc_gsd']) && !preg_match('/^\d+(\.\d{0,4})?$/', $filteredData['smv_proc_gsd'])) ||
+                    !preg_match('/^\d+(\.\d{0,4})?$/', $filteredData['smv_proc_est'])
+                ) {
+                    return response()->json([
+                        'error' => "Format SMV tidak valid. Harus berupa angka dengan maksimal 4 angka desimal.",
+                        'row' => $index + 1
+                    ], 400);
+                }
+
+                // Update atau create dengan data yang sudah divalidasi
+                SewNumProcess::updateOrCreate(
+                    [
+                        'STYLE_NO' => $styleNo,
+                        'NO_PROCESS' => $filteredData['no_process'],
+                    ],
+                    [
+                        'SMV_PROC_GSD' => !empty($filteredData['smv_proc_gsd']) ? $filteredData['smv_proc_gsd'] : null,
+                        'SMV_PROC_EST' => $filteredData['smv_proc_est'],
+                        'PROCESS_NAME_ENG' => !empty($filteredData['process_name_eng']) ? $filteredData['process_name_eng'] : null,
+                        'PROCESS_NAME_IND' => $filteredData['process_name_ind'],
+                        'MACHINE_CODE' => strtoupper($filteredData['machine_code']),
+                        'BUYER_SHORT_NAME' => $validBuyer->BUYER_SHORT_NAME,
+                        'CATEGORY' => $category,
+                        'SUB_CATEGORY' => strtoupper($filteredData['sub_category']),
+                    ]
+                );
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data has been imported successfully!',
+                'overwritten_processes' => $forceImport ? count($existingProcesses) : 0
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Import Error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'An error occurred while importing data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Tambahkan method helper untuk label kolom
+    private function getColumnLabel($column)
+    {
+        $labels = [
+            'style_no' => 'Style Number',
+            'buyer_short_name' => 'Buyer',
+            'no_process' => 'Nomor Proses',
+            'category' => 'Kategori',
+            'sub_category' => 'Sub Kategori',
+            'smv_proc_gsd' => 'SMV Proc GSD',
+            'smv_proc_est' => 'SMV Proc EST',
+            'process_name_eng' => 'Nama Proses (English)',
+            'process_name_ind' => 'Nama Proses (Indonesia)',
+            'machine_code' => 'Kode Mesin'
+        ];
+
+        return $labels[$column] ?? $column;
+    }
+
+    public function softDelete(Request $request)
+    {
+        if (!$this->checkAccess('delete')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $styleNo = $request->input('style_no');
+            $noProcess = $request->input('no_process');
+            $deleteStatus = $request->input('delete_status');
+
+            SewNumProcess::where('STYLE_NO', $styleNo)
+                ->where('NO_PROCESS', $noProcess)
+                ->update(['DELETE_STATUS' => $deleteStatus]);
+
+            $status = $deleteStatus == 1 ? 'Soft Deleted' : 'Restored';
+            Log::channel('num_process')->info("Process {$status} by user: " . Auth::user()->NAME, [
+                'STYLE_NO' => $styleNo,
+                'NO_PROCESS' => $noProcess,
+                'DELETE_STATUS' => $deleteStatus,
+            ]);
+
+            return response()->json(['success' => 'Delete status updated successfully!']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to update delete status: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkSoftDelete(Request $request)
+    {
+        $ids = $request->input('ids', []);
+
+        foreach ($ids as $id) {
+            list($styleNo, $noProcess) = explode('-', $id);
+            $numProcess = SewNumProcess::where('STYLE_NO', $styleNo)->where('NO_PROCESS', $noProcess)->first();
+
+            if ($numProcess) {
+                $previousStatus = $numProcess->DELETE_STATUS;
+                $numProcess->DELETE_STATUS = $previousStatus == 1 ? 0 : 1;
+                $numProcess->save();
+
+                $status = $numProcess->DELETE_STATUS == 1 ? 'Soft Deleted' : 'Restored';
+                Log::channel('num_process')->info("Process {$status} by user: " . Auth::user()->NAME, [
+                    'STYLE_NO' => $styleNo,
+                    'NO_PROCESS' => $noProcess,
+                    'DELETE_STATUS' => $numProcess->DELETE_STATUS,
+                ]);
+            }
+        }
+
+        return response()->json(['success' => 'Delete status has been updated.']);
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $ids = $request->input('ids', []);
+
+        foreach ($ids as $id) {
+            list($styleNo, $noProcess) = explode('-', $id);
+            SewNumProcess::where('STYLE_NO', $styleNo)->where('NO_PROCESS', $noProcess)->delete();
+
+            Log::channel('num_process')->info("Process Deleted by user: " . Auth::user()->NAME, [
+                'STYLE_NO' => $styleNo,
+                'NO_PROCESS' => $noProcess,
+            ]);
+        }
+
+        return response()->json(['success' => 'Selected items have been deleted.']);
+    }
+
+    public function showLogs()
+    {
+        $logFile = storage_path('logs/num_process.log');
+
+        if (File::exists($logFile)) {
+            $logs = File::get($logFile);
+            $logLines = explode(PHP_EOL, $logs);
+        } else {
+            $logLines = ['Log file does not exist.'];
+        }
+
+        return view('sewnumprocess.logs', ['logs' => $logLines]);
+    }
+}

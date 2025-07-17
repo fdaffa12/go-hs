@@ -18,6 +18,7 @@ type Router struct {
 	StyleController     *controllers.StyleController
 	LineScheduleController *controllers.LineScheduleController
 	HolidayController *controllers.HolidayController
+	SewNumProcessController *controllers.SewNumProcessController
 }
 
 // NewRouter creates new router instance
@@ -30,16 +31,18 @@ func NewRouter(
 	styleController *controllers.StyleController,
 	lineScheduleController *controllers.LineScheduleController,
 	holidayController *controllers.HolidayController,
+	sewNumProcessController *controllers.SewNumProcessController,
 ) *Router {
 	return &Router{
-		AuthController:       authController,
-		UserController:      userController,
-		DepartmentController: departmentController,
-		EmployeeController:   employeeController,
-		BuyerController:     buyerController,
-		StyleController:     styleController,
+		AuthController:         authController,
+		UserController:        userController,
+		DepartmentController:  departmentController,
+		EmployeeController:    employeeController,
+		BuyerController:      buyerController,
+		StyleController:      styleController,
 		LineScheduleController: lineScheduleController,
-		HolidayController: holidayController,
+		HolidayController:    holidayController,
+		SewNumProcessController: sewNumProcessController,
 	}
 }
 
@@ -84,6 +87,10 @@ func (router *Router) SetupRoutes() *http.ServeMux {
 	// Holiday management routes (authentication required)
 	mux.HandleFunc("/api/holidays", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleHolidayRoutes))))
 	mux.HandleFunc("/api/holidays/", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleHolidayRoutes))))
+
+	// Sew Numbering Process routes (authentication required)
+	mux.HandleFunc("/api/sew-num-process", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleSewNumProcessRoutes))))
+	mux.HandleFunc("/api/sew-num-process/", middleware.CORSMiddleware(middleware.LoggingMiddleware(middleware.AuthMiddleware(router.handleSewNumProcessRoutes))))
 
 	// Public test route (for testing backend connection without auth)
 	mux.HandleFunc("/api/hello", middleware.CORSMiddleware(middleware.LoggingMiddleware(router.AuthController.TestConnection)))
@@ -397,6 +404,48 @@ func (router *Router) handleHolidayRoutes(w http.ResponseWriter, r *http.Request
 			router.HolidayController.UpdateHoliday(w, r)
 		case "DELETE":
 			router.HolidayController.DeleteHoliday(w, r)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
+		}
+		return
+	}
+
+	// If we get here, the path is not recognized
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(`{"success": false, "message": "Route not found"}`))
+}
+// handleSewNumProcessRoutes handles dynamic sew numbering process routes based on HTTP method
+func (router *Router) handleSewNumProcessRoutes(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/sew-num-process")
+
+	// Handle hard delete
+	if strings.HasPrefix(path, "/hard-delete/") {
+		router.SewNumProcessController.HardDelete(w, r)
+		return
+	}
+
+	// Handle activate
+	if strings.HasPrefix(path, "/activate/") {
+		router.SewNumProcessController.Activate(w, r)
+		return
+	}
+
+	// Route for getting all processes or bulk operations
+	if path == "" || path == "/" {
+		switch r.Method {
+		case "GET":
+			router.SewNumProcessController.GetAllProcesses(w, r)
+		case "POST":
+			if strings.Contains(r.URL.Path, "bulk-delete") {
+				router.SewNumProcessController.BulkDelete(w, r)
+			} else {
+				router.SewNumProcessController.BulkSave(w, r)
+			}
+		case "DELETE":
+			router.SewNumProcessController.Delete(w, r)
 		default:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)

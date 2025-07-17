@@ -22,6 +22,7 @@ import BuyerManagement from "./pages/BuyerManagement.vue";
 import StyleManagement from "./pages/StyleManagement.vue";
 import LineScheduleManagement from "./pages/LineScheduleManagement.vue";
 import HolidayManagement from "./pages/HolidayManagement.vue";
+import SewNumProcessManagement from "./pages/SewNumProcessManagement.vue";
 
 // Define routes
 const routes = [
@@ -60,6 +61,11 @@ const routes = [
   {
     path: "/holidays",
     component: HolidayManagement,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/sew-num-process",
+    component: SewNumProcessManagement,
     meta: { requiresAuth: true },
   },
 ];
