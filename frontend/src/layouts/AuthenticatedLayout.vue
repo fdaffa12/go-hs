@@ -342,7 +342,10 @@
         <!-- Employee Management Dropdown -->
         <div class="space-y-1">
           <button
+            ref="employeeButton"
             @click="toggleEmployeeDropdown"
+            @mouseenter="handleEmployeeHover(true)"
+            @mouseleave="handleEmployeeHover(false)"
             :class="[
               'nav-item w-full',
               {
@@ -393,13 +396,24 @@
 
           <!-- Dropdown Items -->
           <div
-            v-show="employeeDropdownOpen || sidebarCollapsed"
+            v-show="
+              (employeeDropdownOpen && !sidebarCollapsed) ||
+              (sidebarCollapsed && isLargeScreen && isEmployeeHovered)
+            "
             :class="[
               'space-y-1',
-              sidebarCollapsed
-                ? 'lg:absolute lg:left-full lg:top-0 lg:w-48 lg:mt-0 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200'
+              sidebarCollapsed && isLargeScreen
+                ? 'lg:fixed lg:left-[60px] lg:min-w-[12rem] lg:py-2 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200 lg:z-50'
                 : 'pl-4',
             ]"
+            :style="
+              sidebarCollapsed && isLargeScreen
+                ? { top: employeeDropdownTop + 'px' }
+                : {}
+            "
+            ref="employeeDropdown"
+            @mouseenter="handleEmployeeHover(true)"
+            @mouseleave="handleEmployeeHover(false)"
           >
             <router-link
               to="/departments"
@@ -458,7 +472,10 @@
         <!-- Order Management Dropdown -->
         <div class="space-y-1">
           <button
+            ref="orderButton"
             @click="toggleOrderDropdown"
+            @mouseenter="handleOrderHover(true)"
+            @mouseleave="handleOrderHover(false)"
             :class="[
               'nav-item w-full',
               {
@@ -511,13 +528,24 @@
 
           <!-- Order Dropdown Items -->
           <div
-            v-show="orderDropdownOpen || sidebarCollapsed"
+            v-show="
+              (orderDropdownOpen && !sidebarCollapsed) ||
+              (sidebarCollapsed && isLargeScreen && isOrderHovered)
+            "
             :class="[
               'space-y-1',
-              sidebarCollapsed
-                ? 'lg:absolute lg:left-full lg:top-0 lg:w-48 lg:mt-0 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200'
+              sidebarCollapsed && isLargeScreen
+                ? 'lg:fixed lg:left-[60px] lg:min-w-[12rem] lg:py-2 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200 lg:z-50'
                 : 'pl-4',
             ]"
+            :style="
+              sidebarCollapsed && isLargeScreen
+                ? { top: orderDropdownTop + 'px' }
+                : {}
+            "
+            ref="orderDropdown"
+            @mouseenter="handleOrderHover(true)"
+            @mouseleave="handleOrderHover(false)"
           >
             <router-link
               to="/buyers"
@@ -572,30 +600,6 @@
             </router-link>
 
             <router-link
-              to="/line-schedules"
-              :class="[
-                'nav-item',
-                { 'nav-item-active': $route.path === '/line-schedules' },
-                sidebarCollapsed ? 'lg:rounded-none' : '',
-              ]"
-            >
-              <svg
-                class="w-5 h-5 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <span class="transition-opacity duration-300">Line Schedule</span>
-            </router-link>
-
-            <router-link
               to="/sew-num-process"
               :class="[
                 'nav-item',
@@ -626,7 +630,10 @@
         <!-- Schedule Management Dropdown -->
         <div class="space-y-1">
           <button
+            ref="scheduleButton"
             @click="toggleScheduleDropdown"
+            @mouseenter="handleScheduleHover(true)"
+            @mouseleave="handleScheduleHover(false)"
             :class="[
               'nav-item w-full',
               {
@@ -677,13 +684,24 @@
 
           <!-- Schedule Dropdown Items -->
           <div
-            v-show="scheduleDropdownOpen || sidebarCollapsed"
+            v-show="
+              (scheduleDropdownOpen && !sidebarCollapsed) ||
+              (sidebarCollapsed && isLargeScreen && isScheduleHovered)
+            "
             :class="[
               'space-y-1',
-              sidebarCollapsed
-                ? 'lg:absolute lg:left-full lg:top-0 lg:w-48 lg:mt-0 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200'
+              sidebarCollapsed && isLargeScreen
+                ? 'lg:fixed lg:left-[60px] lg:min-w-[12rem] lg:py-2 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200 lg:z-50'
                 : 'pl-4',
             ]"
+            :style="
+              sidebarCollapsed && isLargeScreen
+                ? { top: scheduleDropdownTop + 'px' }
+                : {}
+            "
+            ref="scheduleDropdown"
+            @mouseenter="handleScheduleHover(true)"
+            @mouseleave="handleScheduleHover(false)"
           >
             <router-link
               to="/line-schedules"
@@ -890,6 +908,31 @@ const employeeDropdownOpen = ref(false);
 const orderDropdownOpen = ref(false);
 const scheduleDropdownOpen = ref(false);
 
+// Add hover state for dropdowns
+const isOrderHovered = ref(false);
+const isEmployeeHovered = ref(false);
+const isScheduleHovered = ref(false);
+
+// Add refs for dropdown buttons
+const orderButton = ref(null);
+const employeeButton = ref(null);
+const scheduleButton = ref(null);
+
+// Add refs for dropdowns
+const orderDropdown = ref(null);
+const employeeDropdown = ref(null);
+const scheduleDropdown = ref(null);
+
+// Add reactive refs for dropdown positions
+const orderDropdownTop = ref(0);
+const employeeDropdownTop = ref(0);
+const scheduleDropdownTop = ref(0);
+
+// Add hover timers
+let orderHoverTimer = null;
+let employeeHoverTimer = null;
+let scheduleHoverTimer = null;
+
 // Watch window resize
 const handleResize = () => {
   isLargeScreen.value = window.innerWidth >= 1024;
@@ -901,6 +944,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("resize", handleResize);
+  if (orderHoverTimer) clearTimeout(orderHoverTimer);
+  if (employeeHoverTimer) clearTimeout(employeeHoverTimer);
+  if (scheduleHoverTimer) clearTimeout(scheduleHoverTimer);
 });
 
 // Computed properties
@@ -924,16 +970,95 @@ const getProfileImageUrl = (profilePicture) => {
   return `${baseUrl}${profilePicture}`;
 };
 
-const toggleEmployeeDropdown = () => {
-  employeeDropdownOpen.value = !employeeDropdownOpen.value;
+// Add methods to handle hover
+const handleOrderHover = (isHovered) => {
+  if (sidebarCollapsed.value && isLargeScreen.value) {
+    if (!isHovered) {
+      // Add delay before hiding
+      orderHoverTimer = setTimeout(() => {
+        isOrderHovered.value = false;
+      }, 100);
+    } else {
+      // Clear any existing hide timer
+      if (orderHoverTimer) {
+        clearTimeout(orderHoverTimer);
+        orderHoverTimer = null;
+      }
+      isOrderHovered.value = true;
+      if (orderButton.value) {
+        const rect = orderButton.value.getBoundingClientRect();
+        orderDropdownTop.value = rect.top;
+      }
+    }
+  }
 };
 
+const handleEmployeeHover = (isHovered) => {
+  if (sidebarCollapsed.value && isLargeScreen.value) {
+    if (!isHovered) {
+      employeeHoverTimer = setTimeout(() => {
+        isEmployeeHovered.value = false;
+      }, 100);
+    } else {
+      if (employeeHoverTimer) {
+        clearTimeout(employeeHoverTimer);
+        employeeHoverTimer = null;
+      }
+      isEmployeeHovered.value = true;
+      if (employeeButton.value) {
+        const rect = employeeButton.value.getBoundingClientRect();
+        employeeDropdownTop.value = rect.top;
+      }
+    }
+  }
+};
+
+const handleScheduleHover = (isHovered) => {
+  if (sidebarCollapsed.value && isLargeScreen.value) {
+    if (!isHovered) {
+      scheduleHoverTimer = setTimeout(() => {
+        isScheduleHovered.value = false;
+      }, 100);
+    } else {
+      if (scheduleHoverTimer) {
+        clearTimeout(scheduleHoverTimer);
+        scheduleHoverTimer = null;
+      }
+      isScheduleHovered.value = true;
+      if (scheduleButton.value) {
+        const rect = scheduleButton.value.getBoundingClientRect();
+        scheduleDropdownTop.value = rect.top;
+      }
+    }
+  }
+};
+
+// Update the dropdown toggle methods
 const toggleOrderDropdown = () => {
-  orderDropdownOpen.value = !orderDropdownOpen.value;
+  if (!sidebarCollapsed.value || !isLargeScreen.value) {
+    orderDropdownOpen.value = !orderDropdownOpen.value;
+    // Close other dropdowns
+    employeeDropdownOpen.value = false;
+    scheduleDropdownOpen.value = false;
+  }
+};
+
+const toggleEmployeeDropdown = () => {
+  if (!sidebarCollapsed.value || !isLargeScreen.value) {
+    employeeDropdownOpen.value = !employeeDropdownOpen.value;
+    // Close other dropdowns
+    orderDropdownOpen.value = false;
+    scheduleDropdownOpen.value = false;
+  }
 };
 
 const toggleScheduleDropdown = () => {
-  scheduleDropdownOpen.value = !scheduleDropdownOpen.value;
+  if (!sidebarCollapsed.value || !isLargeScreen.value) {
+    scheduleDropdownOpen.value = !scheduleDropdownOpen.value;
+    // Close other dropdowns
+    orderDropdownOpen.value = false;
+    employeeDropdownOpen.value = false;
+  }
 };
 
 const handleLogout = () => {
@@ -945,7 +1070,7 @@ const handleLogout = () => {
 
 <style scoped>
 .nav-item {
-  @apply flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-200;
+  @apply flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-200 relative;
 }
 
 .nav-item-active {
@@ -966,6 +1091,34 @@ const handleLogout = () => {
   .sidebar-enter-from,
   .sidebar-leave-to {
     transform: translateX(-100%);
+  }
+}
+
+/* Dropdown positioning fixes */
+@media (min-width: 1024px) {
+  .nav-item {
+    position: relative;
+  }
+
+  div[class*="lg:fixed"] {
+    margin-left: 0.5rem;
+  }
+
+  /* Add hover area between button and dropdown */
+  div[class*="lg:fixed"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -8px;
+    width: 8px;
+    height: 100%;
+  }
+}
+
+/* Mobile dropdown styles */
+@media (max-width: 1023px) {
+  .nav-item + div {
+    margin-left: 1rem;
   }
 }
 </style>
