@@ -587,6 +587,7 @@ const holidayForm = ref({
 
 const holidayToDelete = ref(null);
 const holidayToHardDelete = ref(null);
+const holidayToEdit = ref(null); // Add this line
 
 // Computed
 const displayedPages = computed(() => {
@@ -726,8 +727,9 @@ const createHoliday = async () => {
 };
 
 const editHoliday = (holiday) => {
+  holidayToEdit.value = holiday;
   holidayForm.value = {
-    holiday_date: holiday.holiday_date,
+    holiday_date: formatDateForInput(holiday.holiday_date), // Use new helper function
     holiday_name: holiday.holiday_name,
     holiday_type: holiday.holiday_type,
   };
@@ -737,6 +739,10 @@ const editHoliday = (holiday) => {
 const updateHoliday = async () => {
   submitting.value = true;
   try {
+    console.log("Updating holiday:", {
+      id: holidayToEdit.value.holiday_id,
+      data: holidayForm.value,
+    });
     const data = await holidayService.updateHoliday(
       holidayToEdit.value.holiday_id,
       holidayForm.value
@@ -845,20 +851,33 @@ const closeModal = () => {
   };
 };
 
+const formatDateForInput = (dateString) => {
+  if (!dateString) return "";
+  try {
+    // Create a date object and get the date in YYYY-MM-DD format
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    console.error("Error formatting date for input:", error);
+    return "";
+  }
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
 
   try {
+    // Create a date object and format it to DD-MM-YYYY
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return "Invalid Date";
-    }
-    return date.toLocaleDateString("id-ID", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
   } catch (error) {
+    console.error("Error formatting date:", error);
     return "Invalid Date";
   }
 };

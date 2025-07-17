@@ -371,13 +371,13 @@ func (router *Router) handleHolidayRoutes(w http.ResponseWriter, r *http.Request
 	path := strings.TrimPrefix(r.URL.Path, "/api/holidays")
 
 	// Handle hard delete
-	if strings.HasPrefix(path, "/hard-delete/") {
+	if strings.HasPrefix(path, "/hard-delete") {
 		router.HolidayController.HardDeleteHoliday(w, r)
 		return
 	}
 
 	// Handle activate
-	if strings.HasPrefix(path, "/activate/") {
+	if strings.HasPrefix(path, "/activate") {
 		router.HolidayController.ActivateHoliday(w, r)
 		return
 	}
@@ -389,6 +389,10 @@ func (router *Router) handleHolidayRoutes(w http.ResponseWriter, r *http.Request
 			router.HolidayController.GetAllHolidays(w, r)
 		case "POST":
 			router.HolidayController.CreateHoliday(w, r)
+		case "PUT":
+			router.HolidayController.UpdateHoliday(w, r)
+		case "DELETE":
+			router.HolidayController.DeleteHoliday(w, r)
 		default:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -397,15 +401,8 @@ func (router *Router) handleHolidayRoutes(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Routes for specific holiday operations (update, delete)
-	switch r.Method {
-	case "PUT":
-		router.HolidayController.UpdateHoliday(w, r)
-	case "DELETE":
-		router.HolidayController.DeleteHoliday(w, r)
-	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
-	}
+	// If we get here, the path is not recognized
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(`{"success": false, "message": "Route not found"}`))
 }

@@ -669,7 +669,7 @@ export const holidayService = {
 
   updateHoliday: async (id, holidayData) => {
     try {
-      const response = await api.put(`/holidays/${id}`, holidayData);
+      const response = await api.put(`/holidays?id=${id}`, holidayData);
       return response.data;
     } catch (error) {
       throw (
@@ -680,7 +680,7 @@ export const holidayService = {
 
   deleteHoliday: async (id) => {
     try {
-      const response = await api.delete(`/holidays/${id}`);
+      const response = await api.delete(`/holidays?id=${id}`);
       return response.data;
     } catch (error) {
       throw (
@@ -691,7 +691,7 @@ export const holidayService = {
 
   hardDeleteHoliday: async (id) => {
     try {
-      const response = await api.delete(`/holidays/hard-delete/${id}`);
+      const response = await api.delete(`/holidays/hard-delete?id=${id}`);
       return response.data;
     } catch (error) {
       throw (
@@ -702,7 +702,7 @@ export const holidayService = {
 
   activateHoliday: async (id) => {
     try {
-      const response = await api.put(`/holidays/activate/${id}`);
+      const response = await api.put(`/holidays/activate?id=${id}`);
       return response.data;
     } catch (error) {
       throw (
