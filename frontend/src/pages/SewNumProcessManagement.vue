@@ -203,7 +203,7 @@
                   stroke-linejoin="round"
                   stroke-width="2"
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                ></path>
+                />
               </svg>
               <span>Import</span>
             </button>
@@ -1360,6 +1360,20 @@ const handleImport = async (event) => {
   if (!file) return;
 
   try {
+    // Load buyers if not already loaded
+    if (buyers.value.length === 0) {
+      const buyerResponse = await buyerService.getAllBuyers(1, 1000);
+      if (buyerResponse.success) {
+        buyers.value = buyerResponse.data.buyers;
+      }
+    }
+
+    // Load all styles
+    const styleResponse = await styleService.getAllStyles(1, 1000);
+    if (styleResponse.success) {
+      styles.value = styleResponse.data.styles;
+    }
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       const data = new Uint8Array(e.target.result);
@@ -1400,26 +1414,27 @@ const handleImport = async (event) => {
       const invalidRows = [];
       const validCategories = ["SUPPORT PART", "ASSEMBLY PART"];
 
-      // Skip header row and process each data row
+      // Process each data row
       for (let i = 1; i < jsonData.length; i++) {
         const row = jsonData[i];
         const rowNum = i + 1;
         const errors = [];
 
-        // Check if style exists
-        const styleExists = styles.value.some(
-          (s) => s.style_no === row[headers.indexOf("STYLE_NO")]
-        );
-        if (!styleExists) {
-          errors.push("Style tidak ditemukan");
-        }
+        const buyerShortName = row[headers.indexOf("BUYER_SHORT_NAME")];
+        const styleNo = row[headers.indexOf("STYLE_NO")];
 
         // Check if buyer exists
         const buyerExists = buyers.value.some(
-          (b) => b.short_name === row[headers.indexOf("BUYER_SHORT_NAME")]
+          (b) => b.short_name === buyerShortName
         );
         if (!buyerExists) {
-          errors.push("Buyer tidak ditemukan");
+          errors.push(`Buyer "${buyerShortName}" tidak ditemukan`);
+        }
+
+        // Check if style exists
+        const styleExists = styles.value.some((s) => s.style_no === styleNo);
+        if (!styleExists) {
+          errors.push(`Style "${styleNo}" tidak ditemukan`);
         }
 
         // Validate category
@@ -1468,8 +1483,8 @@ const handleImport = async (event) => {
         }
 
         const importData = {
-          buyer_short_name: row[headers.indexOf("BUYER_SHORT_NAME")],
-          style_no: row[headers.indexOf("STYLE_NO")],
+          buyer_short_name: buyerShortName,
+          style_no: styleNo,
           no_process: parseInt(row[headers.indexOf("NO_PROCESS")]),
           category: row[headers.indexOf("CATEGORY")],
           sub_category: row[headers.indexOf("SUB_CATEGORY")],
@@ -1504,7 +1519,17 @@ const handleImport = async (event) => {
         const response = await sewNumProcessService.bulkSave(importedData);
         if (response.success) {
           toast.success(`${importedData.length} proses berhasil diimpor`);
-          handleStyleChange();
+          // If current filter matches any imported data, refresh the view
+          if (filters.value.buyer && filters.value.style) {
+            const hasMatchingData = importedData.some(
+              (data) =>
+                data.buyer_short_name === filters.value.buyer &&
+                data.style_no === filters.value.style
+            );
+            if (hasMatchingData) {
+              handleStyleChange();
+            }
+          }
         } else {
           toast.error(response.message || "Gagal mengimpor proses");
         }
