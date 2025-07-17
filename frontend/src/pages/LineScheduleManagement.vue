@@ -37,6 +37,68 @@
               <span class="hidden sm:inline">Tambah Schedule</span>
               <span class="sm:hidden">Tambah</span>
             </button>
+
+            <!-- Add bulk action buttons -->
+            <div v-if="hasSelection" class="flex gap-2 w-full sm:w-auto">
+              <button
+                @click="showBulkSoftDeleteConfirm"
+                class="btn btn-warning flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                  ></path>
+                </svg>
+                <span>Non-aktifkan ({{ selectedCount }})</span>
+              </button>
+              <button
+                @click="showBulkActivateConfirm"
+                class="btn btn-success flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
+                <span>Aktifkan ({{ selectedCount }})</span>
+              </button>
+              <button
+                @click="showBulkHardDeleteConfirm"
+                class="btn btn-danger flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  ></path>
+                </svg>
+                <span>Hapus ({{ selectedCount }})</span>
+              </button>
+            </div>
+
             <button
               @click="exportToExcel"
               class="btn btn-secondary flex items-center justify-center gap-2 w-full sm:w-auto"
@@ -111,6 +173,14 @@
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
+                <th class="w-4 px-6 py-3">
+                  <input
+                    type="checkbox"
+                    :checked="selectAll"
+                    @change="toggleSelectAll"
+                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
                 <th
                   class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                 >
@@ -170,6 +240,10 @@
                 :key="index"
                 class="bg-blue-50"
               >
+                <td class="w-4 px-6 py-4">
+                  <!-- New rows don't need checkboxes -->
+                  <span class="text-blue-500 text-xs">New</span>
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <em>Auto-generated</em>
                 </td>
@@ -326,6 +400,14 @@
                 :key="schedule.row_id"
                 class="hover:bg-gray-50"
               >
+                <td class="w-4 px-6 py-4">
+                  <input
+                    type="checkbox"
+                    :checked="selectedRows.has(schedule.row_id)"
+                    @change="toggleRowSelection(schedule.row_id)"
+                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {{ schedule.id_registrasi }}
                 </td>
@@ -694,6 +776,101 @@
             </button>
             <button
               @click="confirmActivate"
+              :disabled="submitting"
+              class="px-4 py-2 text-sm sm:text-base bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+            >
+              {{ submitting ? "Mengaktifkan..." : "Aktifkan" }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bulk Action Modals -->
+      <div
+        v-if="showBulkSoftDeleteModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      >
+        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
+          <h3 class="text-lg sm:text-xl font-semibold mb-4 text-yellow-600">
+            Non-aktifkan Line Schedule (Bulk)
+          </h3>
+          <p class="text-sm sm:text-base text-gray-700 mb-6">
+            Apakah Anda yakin ingin menonaktifkan line schedule yang dipilih?
+            Line schedule yang dinonaktifkan masih dapat dilihat dalam sistem.
+          </p>
+
+          <div class="flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              @click="showBulkSoftDeleteModal = false"
+              class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+            >
+              Batal
+            </button>
+            <button
+              @click="confirmBulkSoftDelete"
+              :disabled="submitting"
+              class="px-4 py-2 text-sm sm:text-base bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+            >
+              {{ submitting ? "Menonaktifkan..." : "Non-aktifkan" }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="showBulkDeleteModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      >
+        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
+          <h3 class="text-lg sm:text-xl font-semibold mb-4 text-red-600">
+            Hapus Permanen Line Schedule (Bulk)
+          </h3>
+          <p class="text-sm sm:text-base text-gray-700 mb-6">
+            Apakah Anda yakin ingin menghapus line schedule yang dipilih secara
+            permanen? Tindakan ini tidak dapat dibatalkan dan data akan dihapus
+            dari sistem.
+          </p>
+
+          <div class="flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              @click="showBulkDeleteModal = false"
+              class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+            >
+              Batal
+            </button>
+            <button
+              @click="confirmBulkHardDelete"
+              :disabled="submitting"
+              class="px-4 py-2 text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
+            >
+              {{ submitting ? "Menghapus..." : "Hapus Permanen" }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="showBulkActivateModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      >
+        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto">
+          <h3 class="text-lg sm:text-xl font-semibold mb-4 text-green-600">
+            Aktifkan Line Schedule (Bulk)
+          </h3>
+          <p class="text-sm sm:text-base text-gray-700 mb-6">
+            Apakah Anda yakin ingin mengaktifkan kembali line schedule yang
+            dipilih?
+          </p>
+
+          <div class="flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              @click="showBulkActivateModal = false"
+              class="px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+            >
+              Batal
+            </button>
+            <button
+              @click="confirmBulkActivate"
               :disabled="submitting"
               class="px-4 py-2 text-sm sm:text-base bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2"
             >
@@ -1240,12 +1417,185 @@ const submitting = ref(false);
 const showActivateModal = ref(false);
 const scheduleToActivate = ref(null);
 
+// Add after other reactive state declarations
+const selectedRows = ref(new Set());
+const selectAll = ref(false);
+
+// Add computed property for bulk actions
+const hasSelection = computed(() => selectedRows.value.size > 0);
+const selectedCount = computed(() => selectedRows.value.size);
+
+// Add new refs for bulk action modals
+const showBulkDeleteModal = ref(false);
+const showBulkSoftDeleteModal = ref(false);
+const showBulkActivateModal = ref(false);
+
+// Add methods for bulk selection
+const toggleSelectAll = () => {
+  selectAll.value = !selectAll.value;
+  if (selectAll.value) {
+    // Select all visible rows that are not in new rows
+    schedules.value.forEach((schedule) => {
+      selectedRows.value.add(schedule.row_id);
+    });
+  } else {
+    // Clear selection
+    selectedRows.value.clear();
+  }
+};
+
+const toggleRowSelection = (rowId) => {
+  if (selectedRows.value.has(rowId)) {
+    selectedRows.value.delete(rowId);
+    selectAll.value = false;
+  } else {
+    selectedRows.value.add(rowId);
+    // Check if all visible rows are selected
+    selectAll.value = schedules.value.every((schedule) =>
+      selectedRows.value.has(schedule.row_id)
+    );
+  }
+};
+
+// Add watch for schedules to update selectAll state
+watch(
+  () => schedules.value,
+  () => {
+    // Update selectAll state based on whether all visible rows are selected
+    if (schedules.value.length > 0) {
+      selectAll.value = schedules.value.every((schedule) =>
+        selectedRows.value.has(schedule.row_id)
+      );
+    } else {
+      selectAll.value = false;
+    }
+  }
+);
+
+// Add watch for selectedRows to update selectAll state
+watch(
+  () => selectedRows.value.size,
+  () => {
+    if (schedules.value.length > 0) {
+      selectAll.value = schedules.value.every((schedule) =>
+        selectedRows.value.has(schedule.row_id)
+      );
+    } else {
+      selectAll.value = false;
+    }
+  }
+);
+
+// Add methods for bulk actions
+const showBulkSoftDeleteConfirm = () => {
+  showBulkSoftDeleteModal.value = true;
+};
+
+const confirmBulkSoftDelete = async () => {
+  submitting.value = true;
+  try {
+    const promises = Array.from(selectedRows.value).map((id) =>
+      lineScheduleService.deleteLineSchedule(id)
+    );
+    const results = await Promise.all(promises);
+
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.length - successCount;
+
+    if (failCount === 0) {
+      toast.success(`${successCount} line schedule berhasil dinonaktifkan`);
+    } else {
+      toast.warning(
+        `${successCount} berhasil, ${failCount} gagal dinonaktifkan`
+      );
+    }
+
+    showBulkSoftDeleteModal.value = false;
+    selectedRows.value.clear();
+    selectAll.value = false;
+    await fetchSchedules();
+  } catch (error) {
+    console.error("Error bulk deactivating schedules:", error);
+    toast.error("Terjadi kesalahan saat menonaktifkan line schedule");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const showBulkActivateConfirm = () => {
+  showBulkActivateModal.value = true;
+};
+
+const confirmBulkActivate = async () => {
+  submitting.value = true;
+  try {
+    const promises = Array.from(selectedRows.value).map((id) =>
+      lineScheduleService.activateLineSchedule(id)
+    );
+    const results = await Promise.all(promises);
+
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.length - successCount;
+
+    if (failCount === 0) {
+      toast.success(`${successCount} line schedule berhasil diaktifkan`);
+    } else {
+      toast.warning(`${successCount} berhasil, ${failCount} gagal diaktifkan`);
+    }
+
+    showBulkActivateModal.value = false;
+    selectedRows.value.clear();
+    selectAll.value = false;
+    await fetchSchedules();
+  } catch (error) {
+    console.error("Error bulk activating schedules:", error);
+    toast.error("Terjadi kesalahan saat mengaktifkan line schedule");
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const showBulkHardDeleteConfirm = () => {
+  showBulkDeleteModal.value = true;
+};
+
+const confirmBulkHardDelete = async () => {
+  submitting.value = true;
+  try {
+    const promises = Array.from(selectedRows.value).map((id) =>
+      lineScheduleService.hardDeleteLineSchedule(id)
+    );
+    const results = await Promise.all(promises);
+
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.length - successCount;
+
+    if (failCount === 0) {
+      toast.success(`${successCount} line schedule berhasil dihapus permanen`);
+    } else {
+      toast.warning(`${successCount} berhasil, ${failCount} gagal dihapus`);
+    }
+
+    showBulkDeleteModal.value = false;
+    selectedRows.value.clear();
+    selectAll.value = false;
+    await fetchSchedules();
+  } catch (error) {
+    console.error("Error bulk deleting schedules:", error);
+    toast.error("Terjadi kesalahan saat menghapus line schedule");
+  } finally {
+    submitting.value = false;
+  }
+};
+
 // Methods
 const fetchSchedules = async () => {
   if (!canFetchData.value) {
     schedules.value = [];
     totalItems.value = 0;
     totalPages.value = 0;
+    selectedRows.value.clear(); // Clear selection
+    selectAll.value = false; // Reset selectAll
     return;
   }
 
@@ -1260,25 +1610,32 @@ const fetchSchedules = async () => {
       }
     );
     if (response.success) {
-      // Safely handle null or undefined line_schedules
       if (response.data?.line_schedules) {
         schedules.value = response.data.line_schedules.map((schedule) => ({
           ...schedule,
-          type: mapFactoryToType(schedule.line), // Use line to determine type
+          type: mapFactoryToType(schedule.line),
           isEditing: false,
         }));
         totalItems.value = response.data.total_items;
         totalPages.value = response.data.total_pages;
         currentPage.value = response.data.current_page;
+
+        // Clear selection when data changes
+        selectedRows.value.clear();
+        selectAll.value = false;
       } else {
         schedules.value = [];
         totalItems.value = 0;
         totalPages.value = 0;
+        selectedRows.value.clear();
+        selectAll.value = false;
       }
     } else {
       schedules.value = [];
       totalItems.value = 0;
       totalPages.value = 0;
+      selectedRows.value.clear();
+      selectAll.value = false;
       toast.error(response.message || "Failed to fetch schedules");
     }
   } catch (error) {
@@ -1286,6 +1643,8 @@ const fetchSchedules = async () => {
     schedules.value = [];
     totalItems.value = 0;
     totalPages.value = 0;
+    selectedRows.value.clear();
+    selectAll.value = false;
     toast.error("An error occurred while fetching schedules");
   } finally {
     loading.value = false;
@@ -1570,5 +1929,17 @@ const handleNewRowTypeChange = (row) => {
 
 .form-input {
   @apply mt-1 block w-full px-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg;
+}
+
+.btn-warning {
+  @apply bg-yellow-600 text-white hover:bg-yellow-700;
+}
+
+.btn-success {
+  @apply bg-green-600 text-white hover:bg-green-700;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700;
 }
 </style>
