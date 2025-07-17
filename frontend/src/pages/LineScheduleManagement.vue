@@ -2082,25 +2082,39 @@ const handleImport = async (event) => {
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
       const importedData = [];
-      const duplicates = [];
-      const existingData = new Set(
-        schedules.value.map(
-          (schedule) =>
-            `${schedule.line}-${schedule.style_no}-${
-              schedule.buyer_short_name
-            }-${formatDateForInput(schedule.start_date)}`
-        )
-      );
+      const invalidRows = [];
 
+      // Skip header row and process each data row
       for (let i = 1; i < jsonData.length; i++) {
         const row = jsonData[i];
         const buyerShortName = row[3];
         const styleNo = row[4];
 
+        // Validate buyer exists
+        const buyerExists = allBuyers.some(
+          (b) => b.short_name === buyerShortName
+        );
+        if (!buyerExists) {
+          invalidRows.push({
+            row: i + 1,
+            reason: `Buyer "${buyerShortName}" tidak ditemukan`,
+          });
+          continue;
+        }
+
+        // Validate style exists for the buyer
         const buyerStyles = allStyles.filter(
           (s) => s.buyer_short_name === buyerShortName
         );
         const matchingStyle = buyerStyles.find((s) => s.style_no === styleNo);
+
+        if (!matchingStyle) {
+          invalidRows.push({
+            row: i + 1,
+            reason: `Style "${styleNo}" tidak ditemukan untuk buyer "${buyerShortName}"`,
+          });
+          continue;
+        }
 
         const importData = {
           type: row[1].toLowerCase(),
@@ -2109,27 +2123,36 @@ const handleImport = async (event) => {
           style_no: styleNo,
           number_of_mp: parseInt(row[5]),
           start_date: row[6],
-          date: filters.value.date, // Add selected date to import data
+          date: filters.value.date,
         };
 
-        const dataKey = `${importData.line}-${importData.style_no}-${
-          importData.buyer_short_name
-        }-${formatDateForInput(importData.start_date)}`;
-
-        if (existingData.has(dataKey)) {
-          duplicates.push({
-            message: `Baris ${i + 1}: Line ${importData.line}, Style ${
-              importData.style_no
-            }, Buyer ${importData.buyer_short_name}, Tanggal ${
-              importData.start_date
-            }`,
+        // Basic validation
+        if (
+          !importData.type ||
+          !importData.line ||
+          !importData.start_date ||
+          !importData.number_of_mp
+        ) {
+          invalidRows.push({
+            row: i + 1,
+            reason: "Data tidak lengkap",
           });
-        } else {
-          importedData.push(importData);
-          existingData.add(dataKey);
+          continue;
         }
+
+        importedData.push(importData);
       }
 
+      // Show validation errors if any
+      if (invalidRows.length > 0) {
+        const errorMessages = invalidRows
+          .map((error) => `Baris ${error.row}: ${error.reason}`)
+          .join("\n");
+        toast.error(`Beberapa data tidak valid:\n${errorMessages}`);
+        return;
+      }
+
+      // Process valid data
       for (const data of importedData) {
         const style = allStyles.find(
           (s) =>
@@ -2145,11 +2168,12 @@ const handleImport = async (event) => {
         const newRow = {
           ...data,
           working_day: workingDays,
-          date: filters.value.date, // Ensure date is set from filters
+          date: filters.value.date,
         };
 
         newRows.value.push(newRow);
 
+        // Ensure style is in the list
         const existingStyle = styles.value.find(
           (s) =>
             s.style_no === data.style_no &&
