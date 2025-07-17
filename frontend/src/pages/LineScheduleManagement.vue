@@ -1075,40 +1075,43 @@ const generateRegistrationId = (
 
 // Update the saveNewRow function
 const saveNewRow = async (row, index) => {
-  // Format line value for database
-  const lineForDb = row.type === "component" ? "AREA" : row.line;
-
-  row.id_registrasi = generateRegistrationId(
-    row.type,
-    lineForDb,
-    row.style_no,
-    row.start_date
-  );
-
+  // Validate required fields
   if (!validateNewRow(row)) {
     return;
   }
 
-  const startDate = row.start_date ? new Date(row.start_date) : null;
-  const currentDate = new Date();
+  const lineForDb = row.type === "component" ? "AREA" : row.line;
+
+  // Format the date properly for the ID and payload
+  const formattedStartDate = formatDateForInput(row.start_date);
+
+  const newIdRegistrasi = generateRegistrationId(
+    row.type,
+    lineForDb,
+    row.style_no,
+    formattedStartDate
+  );
 
   // Calculate working days
   const workingDays = await calculateWorkingDays(
-    row.start_date,
+    formattedStartDate,
     filters.value.date
   );
 
+  // Prepare the payload with correct date formats
   const payload = {
-    id_registrasi: row.id_registrasi,
-    date: currentDate,
+    id_registrasi: newIdRegistrasi,
+    date: formatDateForInput(new Date()),
     factory: filters.value.factory || "F2",
     line: lineForDb,
     buyer_short_name: row.buyer_short_name,
     style_no: row.style_no,
-    start_date: startDate,
-    number_of_mp: parseInt(row.number_of_mp),
+    start_date: formattedStartDate,
+    number_of_mp: parseInt(row.number_of_mp) || 0,
     working_day: workingDays,
   };
+
+  console.log("Creating line schedule with payload:", payload);
 
   try {
     const response = await lineScheduleService.createLineSchedule(payload);
@@ -1121,6 +1124,9 @@ const saveNewRow = async (row, index) => {
     }
   } catch (error) {
     console.error("Error creating schedule:", error);
+    if (error.response?.data) {
+      console.error("Server response:", error.response.data);
+    }
     toast.error("Terjadi kesalahan saat membuat schedule");
   }
 };

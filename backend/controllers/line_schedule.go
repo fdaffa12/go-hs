@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -102,11 +104,28 @@ func (lc *LineScheduleController) CreateLineSchedule(w http.ResponseWriter, r *h
 		return
 	}
 
-	var req models.LineScheduleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// Read and log the request body for debugging
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		response := Response{
 			Success: false,
-			Message: "Invalid request format",
+			Message: "Failed to read request body",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	fmt.Printf("Received create request body: %s\n", string(body))
+
+	// Create a new reader with the body for further processing
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	var req models.LineScheduleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Printf("Error decoding request: %v\n", err)
+		response := Response{
+			Success: false,
+			Message: fmt.Sprintf("Invalid request format: %v", err),
 		}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
@@ -114,7 +133,7 @@ func (lc *LineScheduleController) CreateLineSchedule(w http.ResponseWriter, r *h
 	}
 
 	// Validate required fields
-	if req.IDRegistrasi == "" || req.Factory == "" || req.Line == "" || req.BuyerShortName == "" || req.StyleNo == "" || req.StartDate == nil {
+	if req.IDRegistrasi == "" || req.Factory == "" || req.Line == "" || req.BuyerShortName == "" || req.StyleNo == "" {
 		response := Response{
 			Success: false,
 			Message: "All required fields must be provided",
@@ -123,6 +142,31 @@ func (lc *LineScheduleController) CreateLineSchedule(w http.ResponseWriter, r *h
 		json.NewEncoder(w).Encode(response)
 		return
 	}
+
+	// Parse dates
+	startDate, err := time.Parse("2006-01-02", req.StartDate.Format("2006-01-02"))
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: fmt.Sprintf("Invalid start date format: %v", err),
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	req.StartDate = &startDate
+
+	date, err := time.Parse("2006-01-02", req.Date.Format("2006-01-02"))
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: fmt.Sprintf("Invalid date format: %v", err),
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	req.Date = date
 
 	// Calculate working days
 	workingDays, err := lc.LineScheduleModel.CalculateWorkingDays(*req.StartDate, req.Date)
