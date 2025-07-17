@@ -596,6 +596,34 @@
           </div>
         </div>
 
+        <!-- Holiday Management -->
+        <router-link
+          to="/holidays"
+          :class="[
+            'nav-item',
+            { 'nav-item-active': $route.path === '/holidays' },
+            sidebarCollapsed ? 'lg:justify-center lg:px-2' : '',
+          ]"
+          :title="sidebarCollapsed ? 'Holiday Management' : ''"
+        >
+          <svg
+            class="w-5 h-5 flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+          <span v-if="!sidebarCollapsed" class="transition-opacity duration-300"
+            >Manajemen Hari Libur</span
+          >
+        </router-link>
+
         <!-- Divider -->
         <div class="border-t border-gray-200 my-4"></div>
 
@@ -767,6 +795,7 @@ const pageTitle = computed(() => {
     "/dashboard": "Dashboard",
     "/profile": "Profile",
     "/settings": "Settings",
+    "/holidays": "Manajemen Hari Libur",
   };
   return routeNames[route.path] || "Dashboard";
 });

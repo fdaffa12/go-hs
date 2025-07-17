@@ -21,6 +21,7 @@ import EmployeeManagement from "./pages/EmployeeManagement.vue";
 import BuyerManagement from "./pages/BuyerManagement.vue";
 import StyleManagement from "./pages/StyleManagement.vue";
 import LineScheduleManagement from "./pages/LineScheduleManagement.vue";
+import HolidayManagement from "./pages/HolidayManagement.vue";
 
 // Define routes
 const routes = [
@@ -54,6 +55,11 @@ const routes = [
   {
     path: "/line-schedules",
     component: LineScheduleManagement,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/holidays",
+    component: HolidayManagement,
     meta: { requiresAuth: true },
   },
 ];

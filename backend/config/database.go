@@ -221,6 +221,25 @@ func createTables() error {
 		return fmt.Errorf("failed to create hs_wsb_lineschedule table: %v", err)
 	}
 
+	// Add hs_set_holidays table
+	holidaysTableSQL := `
+	CREATE TABLE IF NOT EXISTS hs_set_holidays (
+		HOLIDAY_ID int(11) NOT NULL AUTO_INCREMENT,
+		HOLIDAY_DATE date NOT NULL,
+		HOLIDAY_NAME varchar(100) NOT NULL,
+		HOLIDAY_TYPE enum('NATIONAL','COMPANY','SPECIAL') NOT NULL,
+		DELETE_STATUS tinyint(1) DEFAULT 0,
+		CREATED_AT timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+		UPDATED_AT timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		PRIMARY KEY (HOLIDAY_ID)
+	);
+	`
+
+	_, err = db.Exec(holidaysTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create hs_set_holidays table: %v", err)
+	}
+
 	// Add profile_picture column if it doesn't exist (for existing databases)
 	// Check if column exists first
 	var columnExists int

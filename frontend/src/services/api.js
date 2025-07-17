@@ -639,4 +639,77 @@ export const lineScheduleService = {
   },
 };
 
+// Holiday Service
+export const holidayService = {
+  getAllHolidays: async (page = 1, pageSize = 10, search = "") => {
+    try {
+      const response = await api.get(
+        `/holidays?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(
+          search
+        )}`
+      );
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  createHoliday: async (holidayData) => {
+    try {
+      const response = await api.post("/holidays", holidayData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  updateHoliday: async (id, holidayData) => {
+    try {
+      const response = await api.put(`/holidays/${id}`, holidayData);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  deleteHoliday: async (id) => {
+    try {
+      const response = await api.delete(`/holidays/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  hardDeleteHoliday: async (id) => {
+    try {
+      const response = await api.delete(`/holidays/hard-delete/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+
+  activateHoliday: async (id) => {
+    try {
+      const response = await api.put(`/holidays/activate/${id}`);
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
+};
+
 export default api;
