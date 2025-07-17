@@ -345,12 +345,17 @@ func (router *Router) handleLineScheduleRoutes(w http.ResponseWriter, r *http.Re
 	}
 
 	// Route for getting all line schedules or creating new line schedule
+	// Also handle update and delete with query parameters
 	if path == "" || path == "/" {
 		switch r.Method {
 		case "GET":
 			router.LineScheduleController.GetAllLineSchedules(w, r)
 		case "POST":
 			router.LineScheduleController.CreateLineSchedule(w, r)
+		case "PUT":
+			router.LineScheduleController.UpdateLineSchedule(w, r)
+		case "DELETE":
+			router.LineScheduleController.DeleteLineSchedule(w, r)
 		default:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -359,17 +364,10 @@ func (router *Router) handleLineScheduleRoutes(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Routes for specific line schedule operations (update, delete)
-	switch r.Method {
-	case "PUT":
-		router.LineScheduleController.UpdateLineSchedule(w, r)
-	case "DELETE":
-		router.LineScheduleController.DeleteLineSchedule(w, r)
-	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Write([]byte(`{"success": false, "message": "Method not allowed"}`))
-	}
+	// If we get here, the path is not recognized
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(`{"success": false, "message": "Route not found"}`))
 }
 
 // handleHolidayRoutes handles dynamic holiday routes based on HTTP method

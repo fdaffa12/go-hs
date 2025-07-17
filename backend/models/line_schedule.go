@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -44,6 +45,56 @@ type LineScheduleRequest struct {
 	StartDate      *time.Time `json:"start_date"`
 	NumberOfMP     int       `json:"number_of_mp"`
 	WorkingDay     int       `json:"working_day"`
+}
+
+// UnmarshalJSON custom unmarshaler for LineScheduleRequest
+func (r *LineScheduleRequest) UnmarshalJSON(data []byte) error {
+	// Create an auxiliary struct with string fields for dates
+	type Aux struct {
+		IDRegistrasi   string `json:"id_registrasi"`
+		Date           string `json:"date"`
+		Factory        string `json:"factory"`
+		Line           string `json:"line"`
+		BuyerShortName string `json:"buyer_short_name"`
+		StyleNo        string `json:"style_no"`
+		StartDate      string `json:"start_date"`
+		NumberOfMP     int    `json:"number_of_mp"`
+		WorkingDay     int    `json:"working_day"`
+	}
+
+	// Parse into auxiliary struct
+	var aux Aux
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Parse dates
+	date, err := time.Parse("2006-01-02", aux.Date)
+	if err != nil {
+		return fmt.Errorf("invalid date format: %v", err)
+	}
+
+	var startDate *time.Time
+	if aux.StartDate != "" {
+		parsedStartDate, err := time.Parse("2006-01-02", aux.StartDate)
+		if err != nil {
+			return fmt.Errorf("invalid start date format: %v", err)
+		}
+		startDate = &parsedStartDate
+	}
+
+	// Assign values
+	r.IDRegistrasi = aux.IDRegistrasi
+	r.Date = date
+	r.Factory = aux.Factory
+	r.Line = aux.Line
+	r.BuyerShortName = aux.BuyerShortName
+	r.StyleNo = aux.StyleNo
+	r.StartDate = startDate
+	r.NumberOfMP = aux.NumberOfMP
+	r.WorkingDay = aux.WorkingDay
+
+	return nil
 }
 
 // LineScheduleModel handles database operations for line schedules

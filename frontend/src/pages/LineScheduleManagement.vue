@@ -439,7 +439,7 @@
                     />
                   </div>
                   <div v-else>
-                    {{ formatDate(schedule.start_date) }}
+                    {{ formatDateForDisplay(schedule.start_date) }}
                   </div>
                 </td>
                 <!-- Working Days Column - Remove the edit functionality -->
@@ -902,7 +902,55 @@ const mapTypeToFactory = (type, currentFactory = null) => {
   }
 };
 
-// Update the saveInlineEdit function
+// Add date formatting helper functions
+const formatDateForInput = (dateString) => {
+  if (!dateString) return "";
+  try {
+    // Create a date object and get the date in YYYY-MM-DD format
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    console.error("Error formatting date for input:", error);
+    return "";
+  }
+};
+
+const formatDateForDisplay = (dateString) => {
+  if (!dateString) return "N/A";
+  try {
+    // Create a date object and format it to DD-MM-YYYY
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "Invalid Date";
+  }
+};
+
+// Update formatDate function to use the new helper
+const formatDate = (date) => {
+  if (!date) return "";
+  return formatDateForDisplay(date);
+};
+
+// Update startInlineEdit function
+const startInlineEdit = (schedule) => {
+  schedule.isEditing = true;
+  schedule.editedType = schedule.type;
+  schedule.editedLine = schedule.line;
+  schedule.editedBuyerShortName = schedule.buyer_short_name;
+  schedule.editedStyleNo = schedule.style_no;
+  schedule.editedNumberOfMp = parseInt(schedule.number_of_mp);
+  schedule.editedStartDate = formatDateForInput(schedule.start_date);
+};
+
+// Update saveInlineEdit function
 const saveInlineEdit = async (schedule) => {
   // Validate required fields
   if (
@@ -927,9 +975,7 @@ const saveInlineEdit = async (schedule) => {
     schedule.editedType === "component" ? "AREA" : schedule.editedLine;
 
   // Format the date properly for the ID and payload
-  const formattedStartDate = new Date(schedule.editedStartDate)
-    .toISOString()
-    .split("T")[0];
+  const formattedStartDate = formatDateForInput(schedule.editedStartDate);
 
   const newIdRegistrasi = generateRegistrationId(
     schedule.editedType,
@@ -949,17 +995,18 @@ const saveInlineEdit = async (schedule) => {
   // Prepare the payload with correct date formats
   const payload = {
     id_registrasi: newIdRegistrasi,
-    date: new Date().toISOString(),
+    date: formatDateForInput(new Date()),
     factory: currentFactory,
     line: lineForDb,
     buyer_short_name: schedule.editedBuyerShortName,
     style_no: schedule.editedStyleNo,
-    start_date: new Date(schedule.editedStartDate).toISOString(),
+    start_date: formattedStartDate,
     number_of_mp: parseInt(schedule.editedNumberOfMp) || 0,
     working_day: workingDays,
   };
 
   try {
+    console.log("Sending update request:", { id: schedule.row_id, payload });
     const response = await lineScheduleService.updateLineSchedule(
       schedule.row_id,
       payload
@@ -1149,15 +1196,6 @@ const goToPage = (page) => {
     currentPage.value = page;
     fetchSchedules();
   }
-};
-
-const formatDate = (date) => {
-  if (!date) return "";
-  return new Date(date).toLocaleDateString("id-ID", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
 };
 
 // When displaying data, map factory back to type:
@@ -1363,21 +1401,6 @@ const confirmActivate = async () => {
 };
 
 // Add new methods for inline editing
-const startInlineEdit = (schedule) => {
-  schedule.isEditing = true;
-  schedule.editedType = schedule.type;
-  schedule.editedLine = schedule.line;
-  schedule.editedBuyerShortName = schedule.buyer_short_name;
-  schedule.editedStyleNo = schedule.style_no;
-  schedule.editedNumberOfMp = parseInt(schedule.number_of_mp);
-
-  // Ensure proper date format for editing
-  const startDate = schedule.start_date
-    ? new Date(schedule.start_date)
-    : new Date();
-  schedule.editedStartDate = startDate.toISOString().split("T")[0];
-};
-
 const cancelInlineEdit = (schedule) => {
   schedule.isEditing = false;
   delete schedule.editedType;
@@ -1412,16 +1435,10 @@ const calculateWorkingDays = async (startDate, endDate) => {
   if (!startDate || !endDate) return 0;
 
   try {
-    // Ensure dates are in YYYY-MM-DD format
-    const formattedStartDate = new Date(startDate).toISOString().split("T")[0];
-    const formattedEndDate = new Date(endDate).toISOString().split("T")[0];
-
-    console.log(
-      `Calculating working days from ${formattedStartDate} to ${formattedEndDate}`
-    );
+    console.log(`Calculating working days from ${startDate} to ${endDate}`);
     const response = await lineScheduleService.calculateWorkingDays(
-      formattedStartDate,
-      formattedEndDate
+      startDate,
+      endDate
     );
     if (response.success) {
       console.log(`Working days calculation result:`, response.data);

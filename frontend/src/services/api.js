@@ -596,7 +596,8 @@ export const lineScheduleService = {
 
   updateLineSchedule: async (id, scheduleData) => {
     try {
-      const response = await api.put(`/line-schedules/${id}`, scheduleData);
+      // Change to use query parameter for id like the holiday service
+      const response = await api.put(`/line-schedules?id=${id}`, scheduleData);
       return response.data;
     } catch (error) {
       throw (
@@ -607,7 +608,8 @@ export const lineScheduleService = {
 
   deleteLineSchedule: async (id) => {
     try {
-      const response = await api.delete(`/line-schedules/${id}`);
+      // Change to use query parameter
+      const response = await api.delete(`/line-schedules?id=${id}`);
       return response.data;
     } catch (error) {
       throw (

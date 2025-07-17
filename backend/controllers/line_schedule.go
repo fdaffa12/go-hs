@@ -173,9 +173,9 @@ func (lc *LineScheduleController) UpdateLineSchedule(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Extract ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/line-schedules/")
-	id, err := strconv.ParseInt(path, 10, 64)
+	// Get ID from query parameter
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		response := Response{
 			Success: false,
@@ -197,20 +197,44 @@ func (lc *LineScheduleController) UpdateLineSchedule(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Calculate working days
-	if req.StartDate != nil {
-		workingDays, err := lc.LineScheduleModel.CalculateWorkingDays(*req.StartDate, req.Date)
-		if err != nil {
-			response := Response{
-				Success: false,
-				Message: fmt.Sprintf("Failed to calculate working days: %v", err),
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(response)
-			return
+	// Parse start date
+	startDate, err := time.Parse("2006-01-02", req.StartDate.Format("2006-01-02"))
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: "Invalid start date format",
 		}
-		req.WorkingDay = workingDays
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
 	}
+	req.StartDate = &startDate
+
+	// Parse date
+	date, err := time.Parse("2006-01-02", req.Date.Format("2006-01-02"))
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: "Invalid date format",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	req.Date = date
+
+	// Calculate working days
+	workingDays, err := lc.LineScheduleModel.CalculateWorkingDays(*req.StartDate, req.Date)
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: fmt.Sprintf("Failed to calculate working days: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	req.WorkingDay = workingDays
 
 	schedule, err := lc.LineScheduleModel.Update(id, &req)
 	if err != nil {
@@ -250,9 +274,9 @@ func (lc *LineScheduleController) DeleteLineSchedule(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Extract ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/line-schedules/")
-	id, err := strconv.ParseInt(path, 10, 64)
+	// Get ID from query parameter
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		response := Response{
 			Success: false,
