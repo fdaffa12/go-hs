@@ -596,33 +596,119 @@
           </div>
         </div>
 
-        <!-- Holiday Management -->
-        <router-link
-          to="/holidays"
-          :class="[
-            'nav-item',
-            { 'nav-item-active': $route.path === '/holidays' },
-            sidebarCollapsed ? 'lg:justify-center lg:px-2' : '',
-          ]"
-          :title="sidebarCollapsed ? 'Holiday Management' : ''"
-        >
-          <svg
-            class="w-5 h-5 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <!-- Schedule Management Dropdown -->
+        <div class="space-y-1">
+          <button
+            @click="toggleScheduleDropdown"
+            :class="[
+              'nav-item w-full',
+              {
+                'nav-item-active':
+                  $route.path === '/line-schedules' ||
+                  $route.path === '/holidays',
+              },
+              sidebarCollapsed ? 'lg:justify-center lg:px-2' : '',
+            ]"
+            :title="sidebarCollapsed ? 'Schedule Management' : ''"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
-          </svg>
-          <span v-if="!sidebarCollapsed" class="transition-opacity duration-300"
-            >Manajemen Hari Libur</span
+            <svg
+              class="w-5 h-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <span
+              v-if="!sidebarCollapsed"
+              class="flex-1 transition-opacity duration-300"
+              >Schedule</span
+            >
+            <svg
+              v-if="!sidebarCollapsed"
+              :class="[
+                'w-4 h-4 transition-transform duration-200',
+                { 'rotate-180': scheduleDropdownOpen },
+              ]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+
+          <!-- Schedule Dropdown Items -->
+          <div
+            v-show="scheduleDropdownOpen || sidebarCollapsed"
+            :class="[
+              'space-y-1',
+              sidebarCollapsed
+                ? 'lg:absolute lg:left-full lg:top-0 lg:w-48 lg:mt-0 lg:bg-white lg:rounded-lg lg:shadow-lg lg:border lg:border-gray-200'
+                : 'pl-4',
+            ]"
           >
-        </router-link>
+            <router-link
+              to="/line-schedules"
+              :class="[
+                'nav-item',
+                { 'nav-item-active': $route.path === '/line-schedules' },
+                sidebarCollapsed ? 'lg:rounded-none' : '',
+              ]"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+              <span class="transition-opacity duration-300">Line Schedule</span>
+            </router-link>
+
+            <router-link
+              to="/holidays"
+              :class="[
+                'nav-item',
+                { 'nav-item-active': $route.path === '/holidays' },
+                sidebarCollapsed ? 'lg:rounded-none' : '',
+              ]"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <span class="transition-opacity duration-300"
+                >Manajemen Hari Libur</span
+              >
+            </router-link>
+          </div>
+        </div>
 
         <!-- Divider -->
         <div class="border-t border-gray-200 my-4"></div>
@@ -775,6 +861,7 @@ const sidebarCollapsed = ref(false);
 const isLargeScreen = ref(window?.innerWidth >= 1024);
 const employeeDropdownOpen = ref(false);
 const orderDropdownOpen = ref(false);
+const scheduleDropdownOpen = ref(false);
 
 // Watch window resize
 const handleResize = () => {
@@ -816,6 +903,10 @@ const toggleEmployeeDropdown = () => {
 
 const toggleOrderDropdown = () => {
   orderDropdownOpen.value = !orderDropdownOpen.value;
+};
+
+const toggleScheduleDropdown = () => {
+  scheduleDropdownOpen.value = !scheduleDropdownOpen.value;
 };
 
 const handleLogout = () => {

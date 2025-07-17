@@ -22,7 +22,7 @@ type DatabaseConfig struct {
 // GetDatabaseConfig returns database configuration from environment variables
 func GetDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
-		Host:     getEnv("DB_HOST", "192.168.1.30"),
+		Host:     getEnv("DB_HOST", "192.168.110.252"),
 		Port:     getEnv("DB_PORT", "3306"),
 		User:     getEnv("DB_USER", "laravel"),
 		Password: getEnv("DB_PASSWORD", "laravel"),

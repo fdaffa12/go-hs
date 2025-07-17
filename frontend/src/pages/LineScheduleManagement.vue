@@ -773,9 +773,9 @@
           </h3>
           <p class="text-sm sm:text-base text-gray-700 mb-6">
             Apakah Anda yakin ingin menghapus line schedule
-            <strong>{{ scheduleToHardDelete?.id_registrasi }}</strong>
-            secara permanen? Tindakan ini tidak dapat dibatalkan dan data akan
-            dihapus dari sistem.
+            <strong>{{ scheduleToHardDelete?.id_registrasi }}</strong
+            >? Tindakan ini tidak dapat dibatalkan dan data akan dihapus dari
+            sistem.
           </p>
 
           <div class="flex flex-col sm:flex-row justify-end gap-3">
@@ -1052,7 +1052,7 @@ const totalPages = ref(0);
 const newRows = ref([]); // Change to array for multiple rows
 
 // Update the lines ref to store just numbers
-const lines = ref(["1", "2", "3", "4", "5"]); // Changed from "LINE 1" etc to just numbers
+const lines = ref(Array.from({ length: 25 }, (_, i) => String(i + 1))); // Changed to include lines 1-25
 
 // Filters
 const filters = ref({
