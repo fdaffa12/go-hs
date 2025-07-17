@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/username/backend/models"
 )
@@ -113,7 +114,7 @@ func (lc *LineScheduleController) CreateLineSchedule(w http.ResponseWriter, r *h
 	}
 
 	// Validate required fields
-	if req.IDRegistrasi == "" || req.Factory == "" || req.Line == "" || req.BuyerShortName == "" || req.StyleNo == "" {
+	if req.IDRegistrasi == "" || req.Factory == "" || req.Line == "" || req.BuyerShortName == "" || req.StyleNo == "" || req.StartDate == nil {
 		response := Response{
 			Success: false,
 			Message: "All required fields must be provided",
@@ -122,6 +123,21 @@ func (lc *LineScheduleController) CreateLineSchedule(w http.ResponseWriter, r *h
 		json.NewEncoder(w).Encode(response)
 		return
 	}
+
+	// Calculate working days
+	workingDays, err := lc.LineScheduleModel.CalculateWorkingDays(*req.StartDate, req.Date)
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: fmt.Sprintf("Failed to calculate working days: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Update working days in request
+	req.WorkingDay = workingDays
 
 	schedule, err := lc.LineScheduleModel.Create(&req)
 	if err != nil {
@@ -179,6 +195,21 @@ func (lc *LineScheduleController) UpdateLineSchedule(w http.ResponseWriter, r *h
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(response)
 		return
+	}
+
+	// Calculate working days
+	if req.StartDate != nil {
+		workingDays, err := lc.LineScheduleModel.CalculateWorkingDays(*req.StartDate, req.Date)
+		if err != nil {
+			response := Response{
+				Success: false,
+				Message: fmt.Sprintf("Failed to calculate working days: %v", err),
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+		req.WorkingDay = workingDays
 	}
 
 	schedule, err := lc.LineScheduleModel.Update(id, &req)
@@ -350,6 +381,82 @@ func (lc *LineScheduleController) ActivateLineSchedule(w http.ResponseWriter, r 
 	response := Response{
 		Success: true,
 		Message: "Line schedule activated successfully",
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+// CalculateWorkingDays calculates working days between two dates
+func (lc *LineScheduleController) CalculateWorkingDays(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != "POST" {
+		response := Response{
+			Success: false,
+			Message: "Method not allowed",
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Parse start date and end date from request
+	var req struct {
+		StartDate string `json:"start_date"`
+		EndDate   string `json:"end_date"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response := Response{
+			Success: false,
+			Message: "Invalid request format",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Parse dates
+	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: "Invalid start date format",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: "Invalid end date format",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Calculate working days
+	workingDays, err := lc.LineScheduleModel.CalculateWorkingDays(startDate, endDate)
+	if err != nil {
+		response := Response{
+			Success: false,
+			Message: fmt.Sprintf("Failed to calculate working days: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	response := Response{
+		Success: true,
+		Message: "Working days calculated successfully",
+		Data: map[string]int{
+			"working_days": workingDays,
+		},
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)

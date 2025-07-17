@@ -329,3 +329,64 @@ func (m *LineScheduleModel) HardDelete(id int64) error {
 
 	return nil
 } 
+
+// CalculateWorkingDays calculates working days between start date and end date, excluding weekends and holidays
+func (m *LineScheduleModel) CalculateWorkingDays(startDate, endDate time.Time) (int, error) {
+    // Get holidays between start and end date
+    query := `
+        SELECT DATE_FORMAT(HOLIDAY_DATE, '%Y-%m-%d') as holiday_date
+        FROM hs_set_holidays 
+        WHERE DATE(HOLIDAY_DATE) BETWEEN ? AND ? 
+        AND DELETE_STATUS = 0
+    `
+    
+    // Format dates for SQL query
+    startStr := startDate.Format("2006-01-02")
+    endStr := endDate.Format("2006-01-02")
+    
+    fmt.Printf("Checking holidays between %s and %s\n", startStr, endStr)
+    
+    rows, err := m.DB.Query(query, startStr, endStr)
+    if err != nil {
+        return 0, fmt.Errorf("failed to get holidays: %v", err)
+    }
+    defer rows.Close()
+
+    // Store holidays in a map for O(1) lookup
+    holidays := make(map[string]bool)
+    for rows.Next() {
+        var holidayDate string
+        if err := rows.Scan(&holidayDate); err != nil {
+            return 0, fmt.Errorf("failed to scan holiday date: %v", err)
+        }
+        holidays[holidayDate] = true
+        fmt.Printf("Found holiday on: %s\n", holidayDate)
+    }
+
+    workingDays := 0
+    currentDate := startDate
+
+    // Iterate through each day
+    for !currentDate.After(endDate) {
+        currentDateStr := currentDate.Format("2006-01-02")
+        
+        // Skip weekends (Saturday = 6, Sunday = 0)
+        if currentDate.Weekday() != time.Saturday && currentDate.Weekday() != time.Sunday {
+            // Check if it's not a holiday
+            isHoliday := holidays[currentDateStr]
+            if !isHoliday {
+                workingDays++
+                fmt.Printf("Adding working day: %s\n", currentDateStr)
+            } else {
+                fmt.Printf("Skipping holiday: %s\n", currentDateStr)
+            }
+        } else {
+            fmt.Printf("Skipping weekend: %s\n", currentDateStr)
+        }
+        
+        currentDate = currentDate.AddDate(0, 0, 1)
+    }
+
+    fmt.Printf("Total working days calculated: %d\n", workingDays)
+    return workingDays, nil
+} 

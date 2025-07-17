@@ -245,15 +245,13 @@
                     v-model="row.start_date"
                     type="date"
                     class="form-input w-full"
+                    @change="handleStartDateChange(row)"
                   />
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <input
-                    v-model.number="row.working_day"
-                    type="number"
-                    class="form-input w-full"
-                    placeholder="Days"
-                  />
+                  <div class="text-sm text-gray-500 italic">
+                    {{ row.working_day || "Dihitung otomatis" }}
+                  </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span
@@ -437,6 +435,7 @@
                       v-model="schedule.editedStartDate"
                       type="date"
                       class="form-input w-full"
+                      @change="handleEditStartDateChange(schedule)"
                     />
                   </div>
                   <div v-else>
@@ -445,7 +444,18 @@
                 </td>
                 <!-- Working Days Column - Remove the edit functionality -->
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ schedule.working_day }}
+                  <div v-if="schedule.isEditing">
+                    <div class="text-sm text-gray-500 italic">
+                      {{
+                        schedule.editedWorkingDay ||
+                        schedule.working_day ||
+                        "Dihitung otomatis"
+                      }}
+                    </div>
+                  </div>
+                  <div v-else>
+                    {{ schedule.working_day }}
+                  </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span
@@ -795,7 +805,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "../stores/auth";
 import AuthenticatedLayout from "../layouts/AuthenticatedLayout.vue";
@@ -894,6 +904,25 @@ const mapTypeToFactory = (type, currentFactory = null) => {
 
 // Update the saveInlineEdit function
 const saveInlineEdit = async (schedule) => {
+  // Validate required fields
+  if (
+    !schedule.editedType ||
+    !schedule.editedLine ||
+    !schedule.editedBuyerShortName ||
+    !schedule.editedStyleNo ||
+    !schedule.editedNumberOfMp ||
+    !schedule.editedStartDate
+  ) {
+    toast.error("Silakan isi semua field yang diperlukan");
+    return;
+  }
+
+  // Validate number_of_mp is a number
+  if (!/^\d+$/.test(schedule.editedNumberOfMp)) {
+    toast.error("Jumlah MP harus berupa angka");
+    return;
+  }
+
   const lineForDb =
     schedule.editedType === "component" ? "AREA" : schedule.editedLine;
 
@@ -911,17 +940,23 @@ const saveInlineEdit = async (schedule) => {
 
   const currentFactory = filters.value.factory || schedule.factory;
 
+  // Calculate working days
+  const workingDays = await calculateWorkingDays(
+    formattedStartDate,
+    filters.value.date
+  );
+
   // Prepare the payload with correct date formats
   const payload = {
     id_registrasi: newIdRegistrasi,
-    date: new Date().toISOString(), // Format as full ISO string
+    date: new Date().toISOString(),
     factory: currentFactory,
     line: lineForDb,
     buyer_short_name: schedule.editedBuyerShortName,
     style_no: schedule.editedStyleNo,
-    start_date: new Date(schedule.editedStartDate).toISOString(), // Format as full ISO string
+    start_date: new Date(schedule.editedStartDate).toISOString(),
     number_of_mp: parseInt(schedule.editedNumberOfMp) || 0,
-    working_day: parseInt(schedule.working_day), // Pastikan ini integer
+    working_day: workingDays,
   };
 
   try {
@@ -939,7 +974,8 @@ const saveInlineEdit = async (schedule) => {
       schedule.id_registrasi = newIdRegistrasi;
       schedule.factory = payload.factory;
       schedule.number_of_mp = payload.number_of_mp;
-      schedule.start_date = formattedStartDate; // Use formatted date for display
+      schedule.start_date = formattedStartDate;
+      schedule.working_day = workingDays;
       schedule.isEditing = false;
 
       // Clean up temporary edit fields
@@ -997,7 +1033,7 @@ const saveNewRow = async (row, index) => {
 
   row.id_registrasi = generateRegistrationId(
     row.type,
-    lineForDb, // Pass the database format line value
+    lineForDb,
     row.style_no,
     row.start_date
   );
@@ -1009,30 +1045,36 @@ const saveNewRow = async (row, index) => {
   const startDate = row.start_date ? new Date(row.start_date) : null;
   const currentDate = new Date();
 
+  // Calculate working days
+  const workingDays = await calculateWorkingDays(
+    row.start_date,
+    filters.value.date
+  );
+
   const payload = {
     id_registrasi: row.id_registrasi,
     date: currentDate,
     factory: filters.value.factory || "F2",
-    line: lineForDb, // Store raw line value (AREA or number)
+    line: lineForDb,
     buyer_short_name: row.buyer_short_name,
     style_no: row.style_no,
     start_date: startDate,
     number_of_mp: parseInt(row.number_of_mp),
-    working_day: parseInt(row.working_day),
+    working_day: workingDays,
   };
 
   try {
     const response = await lineScheduleService.createLineSchedule(payload);
     if (response.success) {
-      toast.success("Schedule created successfully");
-      newRows.value.splice(index, 1); // Remove only the saved row
+      toast.success("Schedule berhasil dibuat");
+      newRows.value.splice(index, 1);
       fetchSchedules();
     } else {
-      toast.error(response.message || "Failed to create schedule");
+      toast.error(response.message || "Gagal membuat schedule");
     }
   } catch (error) {
     console.error("Error creating schedule:", error);
-    toast.error("An error occurred while creating the schedule");
+    toast.error("Terjadi kesalahan saat membuat schedule");
   }
 };
 
@@ -1048,14 +1090,22 @@ const validateNewRow = (row) => {
     "style_no",
     "number_of_mp",
     "start_date",
-    "working_day",
-  ];
+  ]; // Remove working_day from required fields
   const missing = required.filter((field) => !row[field]);
 
   if (missing.length > 0) {
-    toast.error(`Please fill in all required fields: ${missing.join(", ")}`);
+    toast.error(
+      `Silakan isi semua field yang diperlukan: ${missing.join(", ")}`
+    );
     return false;
   }
+
+  // Validate number_of_mp is a number
+  if (!/^\d+$/.test(row.number_of_mp)) {
+    toast.error("Jumlah MP harus berupa angka");
+    return false;
+  }
+
   return true;
 };
 
@@ -1355,6 +1405,105 @@ const getFilteredStyles = (buyerShortName) => {
   return styles.value.filter(
     (style) => style.buyer_short_name === buyerShortName
   );
+};
+
+// Add new function for calculating working days
+const calculateWorkingDays = async (startDate, endDate) => {
+  if (!startDate || !endDate) return 0;
+
+  try {
+    // Ensure dates are in YYYY-MM-DD format
+    const formattedStartDate = new Date(startDate).toISOString().split("T")[0];
+    const formattedEndDate = new Date(endDate).toISOString().split("T")[0];
+
+    console.log(
+      `Calculating working days from ${formattedStartDate} to ${formattedEndDate}`
+    );
+    const response = await lineScheduleService.calculateWorkingDays(
+      formattedStartDate,
+      formattedEndDate
+    );
+    if (response.success) {
+      console.log(`Working days calculation result:`, response.data);
+      return response.data.working_days;
+    }
+    return 0;
+  } catch (error) {
+    console.error("Error calculating working days:", error);
+    if (error.response?.data) {
+      console.error("Server response:", error.response.data);
+    }
+    toast.error("Gagal menghitung hari kerja");
+    return 0;
+  }
+};
+
+// Add watchers for start date changes
+watch(
+  () => filters.value.date,
+  async (newDate, oldDate) => {
+    if (newDate !== oldDate) {
+      // Update working days for new rows
+      for (const row of newRows.value) {
+        if (row.start_date) {
+          console.log(
+            `Start date changed for new row. Calculating from ${row.start_date} to ${newDate}`
+          );
+          const workingDays = await calculateWorkingDays(
+            row.start_date,
+            newDate
+          );
+          console.log(`Calculated working days: ${workingDays}`);
+          row.working_day = workingDays;
+        }
+      }
+
+      // Update working days for edited rows
+      for (const schedule of schedules.value) {
+        if (schedule.isEditing && schedule.editedStartDate) {
+          console.log(
+            `Start date changed for edit mode. Calculating from ${schedule.editedStartDate} to ${newDate}`
+          );
+          const workingDays = await calculateWorkingDays(
+            schedule.editedStartDate,
+            newDate
+          );
+          console.log(`Calculated working days: ${workingDays}`);
+          schedule.editedWorkingDay = workingDays;
+        }
+      }
+    }
+  }
+);
+
+// Add handler for start date changes in new rows
+const handleStartDateChange = async (row) => {
+  if (row.start_date && filters.value.date) {
+    console.log(
+      `Start date changed for new row. Calculating from ${row.start_date} to ${filters.value.date}`
+    );
+    const workingDays = await calculateWorkingDays(
+      row.start_date,
+      filters.value.date
+    );
+    console.log(`Calculated working days: ${workingDays}`);
+    row.working_day = workingDays;
+  }
+};
+
+// Add handler for start date changes in edit mode
+const handleEditStartDateChange = async (schedule) => {
+  if (schedule.editedStartDate && filters.value.date) {
+    console.log(
+      `Start date changed for edit mode. Calculating from ${schedule.editedStartDate} to ${filters.value.date}`
+    );
+    const workingDays = await calculateWorkingDays(
+      schedule.editedStartDate,
+      filters.value.date
+    );
+    console.log(`Calculated working days: ${workingDays}`);
+    schedule.editedWorkingDay = workingDays;
+  }
 };
 
 // Lifecycle hooks

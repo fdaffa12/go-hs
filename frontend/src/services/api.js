@@ -637,6 +637,23 @@ export const lineScheduleService = {
       );
     }
   },
+
+  calculateWorkingDays: async (startDate, endDate) => {
+    try {
+      const response = await api.post(
+        "/line-schedules/calculate-working-days",
+        {
+          start_date: startDate,
+          end_date: endDate,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw (
+        error.response?.data || { success: false, message: "Network error" }
+      );
+    }
+  },
 };
 
 // Holiday Service

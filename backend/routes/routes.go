@@ -326,6 +326,12 @@ func (router *Router) handleStyleRoutes(w http.ResponseWriter, r *http.Request) 
 func (router *Router) handleLineScheduleRoutes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/line-schedules")
 
+	// Handle calculate working days
+	if strings.HasPrefix(path, "/calculate-working-days") {
+		router.LineScheduleController.CalculateWorkingDays(w, r)
+		return
+	}
+
 	// Handle hard delete
 	if strings.HasPrefix(path, "/hard-delete/") {
 		router.LineScheduleController.HardDeleteLineSchedule(w, r)
