@@ -38,6 +38,28 @@
               <span class="sm:hidden">Tambah</span>
             </button>
 
+            <!-- Add Save All button -->
+            <button
+              v-if="newRows.length > 0"
+              @click="saveAllNewRows"
+              class="btn btn-success flex items-center justify-center gap-2 w-full sm:w-auto"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                ></path>
+              </svg>
+              <span>Save All ({{ newRows.length }})</span>
+            </button>
+
             <!-- Add bulk action buttons -->
             <div v-if="hasSelection" class="flex gap-2 w-full sm:w-auto">
               <button
@@ -99,6 +121,35 @@
               </button>
             </div>
 
+            <!-- Import Button -->
+            <button
+              @click="$refs.importFile.click()"
+              class="btn btn-secondary flex items-center justify-center gap-2 w-full sm:w-auto"
+            >
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                ></path>
+              </svg>
+              <span>Import</span>
+            </button>
+            <input
+              ref="importFile"
+              type="file"
+              accept=".xlsx,.xls"
+              class="hidden"
+              @change="handleImport"
+            />
+
+            <!-- Export Button -->
             <button
               @click="exportToExcel"
               class="btn btn-secondary flex items-center justify-center gap-2 w-full sm:w-auto"
@@ -294,7 +345,7 @@
                   >
                     <option value="">Pilih Style</option>
                     <option
-                      v-for="style in filteredStyles"
+                      v-for="style in getStylesByBuyer(row.buyer_short_name)"
                       :key="style.style_no"
                       :value="style.style_no"
                     >
@@ -474,7 +525,7 @@
                     >
                       <option value="">Pilih Style</option>
                       <option
-                        v-for="style in getFilteredStyles(
+                        v-for="style in getStylesByBuyer(
                           schedule.editedBuyerShortName
                         )"
                         :key="style.style_no"
@@ -975,7 +1026,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { useToast } from "vue-toastification";
 import { useAuthStore } from "../stores/auth";
 import AuthenticatedLayout from "../layouts/AuthenticatedLayout.vue";
@@ -984,6 +1035,7 @@ import {
   buyerService,
   styleService,
 } from "../services/api";
+import * as XLSX from "xlsx";
 
 const authStore = useAuthStore();
 const toast = useToast();
@@ -1019,6 +1071,14 @@ const filteredStyles = computed(() => {
     (style) => style.buyer_short_name === newRows.value[0].buyer_short_name
   );
 });
+
+// Add new computed property for getting styles by buyer
+const getStylesByBuyer = (buyerShortName) => {
+  if (!buyerShortName) return [];
+  return styles.value.filter(
+    (style) => style.buyer_short_name === buyerShortName
+  );
+};
 
 // Computed property for pagination
 const displayedPages = computed(() => {
@@ -1245,14 +1305,16 @@ const generateRegistrationId = (
 
 // Update the saveNewRow function
 const saveNewRow = async (row, index) => {
-  // Validate required fields
   if (!validateNewRow(row)) {
     return;
   }
 
-  const lineForDb = row.type === "component" ? "AREA" : row.line;
+  if (!filters.value.date) {
+    toast.error("Silakan pilih tanggal terlebih dahulu");
+    return;
+  }
 
-  // Format the date properly for the ID and payload
+  const lineForDb = row.type === "component" ? "AREA" : row.line;
   const formattedStartDate = formatDateForInput(row.start_date);
 
   const newIdRegistrasi = generateRegistrationId(
@@ -1262,16 +1324,14 @@ const saveNewRow = async (row, index) => {
     formattedStartDate
   );
 
-  // Calculate working days
   const workingDays = await calculateWorkingDays(
     formattedStartDate,
     filters.value.date
   );
 
-  // Prepare the payload with correct date formats
   const payload = {
     id_registrasi: newIdRegistrasi,
-    date: formatDateForInput(new Date()),
+    date: formatDateForInput(filters.value.date), // Use selected date
     factory: filters.value.factory || "F2",
     line: lineForDb,
     buyer_short_name: row.buyer_short_name,
@@ -1280,8 +1340,6 @@ const saveNewRow = async (row, index) => {
     number_of_mp: parseInt(row.number_of_mp) || 0,
     working_day: workingDays,
   };
-
-  console.log("Creating line schedule with payload:", payload);
 
   try {
     const response = await lineScheduleService.createLineSchedule(payload);
@@ -1293,10 +1351,6 @@ const saveNewRow = async (row, index) => {
       toast.error(response.message || "Gagal membuat schedule");
     }
   } catch (error) {
-    console.error("Error creating schedule:", error);
-    if (error.response?.data) {
-      console.error("Server response:", error.response.data);
-    }
     toast.error("Terjadi kesalahan saat membuat schedule");
   }
 };
@@ -1305,6 +1359,88 @@ const cancelNewRow = (index) => {
   newRows.value.splice(index, 1);
 };
 
+// Add new function for bulk saving
+const saveAllNewRows = async () => {
+  if (newRows.value.length === 0) {
+    toast.warning("Tidak ada data untuk disimpan");
+    return;
+  }
+
+  if (!filters.value.date) {
+    toast.error("Silakan pilih tanggal terlebih dahulu");
+    return;
+  }
+
+  // Validate all rows first
+  const invalidRows = [];
+  newRows.value.forEach((row, index) => {
+    if (!validateNewRow(row)) {
+      invalidRows.push(index + 1);
+    }
+  });
+
+  if (invalidRows.length > 0) {
+    toast.error(`Data pada baris ${invalidRows.join(", ")} belum lengkap`);
+    return;
+  }
+
+  try {
+    const promises = newRows.value.map(async (row) => {
+      const lineForDb = row.type === "component" ? "AREA" : row.line;
+      const formattedStartDate = formatDateForInput(row.start_date);
+      const newIdRegistrasi = generateRegistrationId(
+        row.type,
+        lineForDb,
+        row.style_no,
+        formattedStartDate
+      );
+
+      const workingDays = await calculateWorkingDays(
+        formattedStartDate,
+        filters.value.date
+      );
+
+      const payload = {
+        id_registrasi: newIdRegistrasi,
+        date: formatDateForInput(filters.value.date), // Use selected date instead of current date
+        factory: filters.value.factory || "F2",
+        line: lineForDb,
+        buyer_short_name: row.buyer_short_name,
+        style_no: row.style_no,
+        start_date: formattedStartDate,
+        number_of_mp: parseInt(row.number_of_mp) || 0,
+        working_day: workingDays,
+      };
+
+      return lineScheduleService.createLineSchedule(payload);
+    });
+
+    const results = await Promise.allSettled(promises);
+
+    const successful = results.filter(
+      (r) => r.status === "fulfilled" && r.value.success
+    ).length;
+    const failed = results.length - successful;
+
+    // Clear all successfully saved rows
+    newRows.value = [];
+
+    if (failed === 0) {
+      toast.success(`${successful} schedule berhasil disimpan`);
+    } else {
+      toast.warning(
+        `${successful} berhasil disimpan, ${failed} gagal disimpan`
+      );
+    }
+
+    // Refresh the schedule list
+    await fetchSchedules();
+  } catch (error) {
+    toast.error("Terjadi kesalahan saat menyimpan data");
+  }
+};
+
+// Update validateNewRow to return boolean only
 const validateNewRow = (row) => {
   const required = [
     "type",
@@ -1313,19 +1449,15 @@ const validateNewRow = (row) => {
     "style_no",
     "number_of_mp",
     "start_date",
-  ]; // Remove working_day from required fields
-  const missing = required.filter((field) => !row[field]);
+  ];
 
-  if (missing.length > 0) {
-    toast.error(
-      `Silakan isi semua field yang diperlukan: ${missing.join(", ")}`
-    );
+  const hasAllRequired = required.every((field) => !!row[field]);
+  if (!hasAllRequired) {
     return false;
   }
 
   // Validate number_of_mp is a number
   if (!/^\d+$/.test(row.number_of_mp)) {
-    toast.error("Jumlah MP harus berupa angka");
     return false;
   }
 
@@ -1349,8 +1481,45 @@ const deleteSchedule = (schedule) => {
 };
 
 const exportToExcel = () => {
-  const url = `${window.location.origin}/api/line-schedules/export?type=${filters.value.type}&date=${filters.value.date}`;
-  window.open(url, "_blank");
+  // Create workbook and worksheet
+  const wb = XLSX.utils.book_new();
+  const ws_data = [];
+
+  // Add header row
+  const header = [
+    "ID_REGISTRASI",
+    "COMPONENT/ASSEMBLY",
+    "LINE",
+    "BUYER_SHORT_NAME",
+    "STYLE_NO",
+    "NUMBER_OF_MP",
+    "START_DATE",
+    "WORKING_DAY",
+  ];
+  ws_data.push(header);
+
+  // Add data rows
+  schedules.value.forEach((schedule) => {
+    const row = [
+      schedule.id_registrasi,
+      schedule.type.toUpperCase(),
+      schedule.line,
+      schedule.buyer_short_name,
+      schedule.style_no,
+      schedule.number_of_mp,
+      formatDateForInput(schedule.start_date),
+      schedule.working_day,
+    ];
+    ws_data.push(row);
+  });
+
+  // Create worksheet and append to workbook
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  XLSX.utils.book_append_sheet(wb, ws, "Line Schedule");
+
+  // Save file
+  XLSX.writeFile(wb, "LineSchedule.xlsx");
+  toast.success("Data berhasil diekspor ke Excel");
 };
 
 const prevPage = () => {
@@ -1777,15 +1946,35 @@ const handleTypeChange = (schedule) => {
   }
 };
 
-const handleBuyerChangeInline = (schedule) => {
+const handleBuyerChangeInline = async (schedule) => {
   schedule.editedStyleNo = "";
-};
 
-const getFilteredStyles = (buyerShortName) => {
-  if (!buyerShortName) return [];
-  return styles.value.filter(
-    (style) => style.buyer_short_name === buyerShortName
-  );
+  const buyerStyles = getStylesByBuyer(schedule.editedBuyerShortName);
+
+  if (buyerStyles.length === 0) {
+    try {
+      const response = await styleService.getAllStyles(
+        1,
+        1000,
+        schedule.editedBuyerShortName
+      );
+      if (response.success) {
+        response.data.styles.forEach((style) => {
+          const exists = styles.value.some(
+            (s) =>
+              s.style_no === style.style_no &&
+              s.buyer_short_name === style.buyer_short_name
+          );
+
+          if (!exists) {
+            styles.value.push(style);
+          }
+        });
+      }
+    } catch (error) {
+      toast.error("Gagal mengambil data style untuk buyer ini");
+    }
+  }
 };
 
 // Add new function for calculating working days
@@ -1793,21 +1982,15 @@ const calculateWorkingDays = async (startDate, endDate) => {
   if (!startDate || !endDate) return 0;
 
   try {
-    console.log(`Calculating working days from ${startDate} to ${endDate}`);
     const response = await lineScheduleService.calculateWorkingDays(
       startDate,
       endDate
     );
     if (response.success) {
-      console.log(`Working days calculation result:`, response.data);
       return response.data.working_days;
     }
     return 0;
   } catch (error) {
-    console.error("Error calculating working days:", error);
-    if (error.response?.data) {
-      console.error("Server response:", error.response.data);
-    }
     toast.error("Gagal menghitung hari kerja");
     return 0;
   }
@@ -1818,32 +2001,22 @@ watch(
   () => filters.value.date,
   async (newDate, oldDate) => {
     if (newDate !== oldDate) {
-      // Update working days for new rows
       for (const row of newRows.value) {
         if (row.start_date) {
-          console.log(
-            `Start date changed for new row. Calculating from ${row.start_date} to ${newDate}`
-          );
           const workingDays = await calculateWorkingDays(
             row.start_date,
             newDate
           );
-          console.log(`Calculated working days: ${workingDays}`);
           row.working_day = workingDays;
         }
       }
 
-      // Update working days for edited rows
       for (const schedule of schedules.value) {
         if (schedule.isEditing && schedule.editedStartDate) {
-          console.log(
-            `Start date changed for edit mode. Calculating from ${schedule.editedStartDate} to ${newDate}`
-          );
           const workingDays = await calculateWorkingDays(
             schedule.editedStartDate,
             newDate
           );
-          console.log(`Calculated working days: ${workingDays}`);
           schedule.editedWorkingDay = workingDays;
         }
       }
@@ -1854,14 +2027,10 @@ watch(
 // Add handler for start date changes in new rows
 const handleStartDateChange = async (row) => {
   if (row.start_date && filters.value.date) {
-    console.log(
-      `Start date changed for new row. Calculating from ${row.start_date} to ${filters.value.date}`
-    );
     const workingDays = await calculateWorkingDays(
       row.start_date,
       filters.value.date
     );
-    console.log(`Calculated working days: ${workingDays}`);
     row.working_day = workingDays;
   }
 };
@@ -1869,15 +2038,169 @@ const handleStartDateChange = async (row) => {
 // Add handler for start date changes in edit mode
 const handleEditStartDateChange = async (schedule) => {
   if (schedule.editedStartDate && filters.value.date) {
-    console.log(
-      `Start date changed for edit mode. Calculating from ${schedule.editedStartDate} to ${filters.value.date}`
-    );
     const workingDays = await calculateWorkingDays(
       schedule.editedStartDate,
       filters.value.date
     );
-    console.log(`Calculated working days: ${workingDays}`);
     schedule.editedWorkingDay = workingDays;
+  }
+};
+
+// Add import file ref
+const importFile = ref(null);
+
+// Add import handler function
+const handleImport = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Check if date filter is selected
+  if (!filters.value.date) {
+    toast.error("Silakan pilih tanggal terlebih dahulu");
+    event.target.value = "";
+    return;
+  }
+
+  try {
+    const styleResponse = await styleService.getAllStyles(1, 1000);
+    if (!styleResponse.success) {
+      throw new Error("Gagal mengambil data style");
+    }
+    const allStyles = styleResponse.data.styles;
+
+    const buyerResponse = await buyerService.getAllBuyers(1, 100);
+    if (!buyerResponse.success) {
+      throw new Error("Gagal mengambil data buyer");
+    }
+    const allBuyers = buyerResponse.data.buyers;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+      const importedData = [];
+      const duplicates = [];
+      const existingData = new Set(
+        schedules.value.map(
+          (schedule) =>
+            `${schedule.line}-${schedule.style_no}-${
+              schedule.buyer_short_name
+            }-${formatDateForInput(schedule.start_date)}`
+        )
+      );
+
+      for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        const buyerShortName = row[3];
+        const styleNo = row[4];
+
+        const buyerStyles = allStyles.filter(
+          (s) => s.buyer_short_name === buyerShortName
+        );
+        const matchingStyle = buyerStyles.find((s) => s.style_no === styleNo);
+
+        const importData = {
+          type: row[1].toLowerCase(),
+          line: row[2],
+          buyer_short_name: buyerShortName,
+          style_no: styleNo,
+          number_of_mp: parseInt(row[5]),
+          start_date: row[6],
+          date: filters.value.date, // Add selected date to import data
+        };
+
+        const dataKey = `${importData.line}-${importData.style_no}-${
+          importData.buyer_short_name
+        }-${formatDateForInput(importData.start_date)}`;
+
+        if (existingData.has(dataKey)) {
+          duplicates.push({
+            message: `Baris ${i + 1}: Line ${importData.line}, Style ${
+              importData.style_no
+            }, Buyer ${importData.buyer_short_name}, Tanggal ${
+              importData.start_date
+            }`,
+          });
+        } else {
+          importedData.push(importData);
+          existingData.add(dataKey);
+        }
+      }
+
+      for (const data of importedData) {
+        const style = allStyles.find(
+          (s) =>
+            s.style_no === data.style_no &&
+            s.buyer_short_name === data.buyer_short_name
+        );
+
+        const workingDays = await calculateWorkingDays(
+          data.start_date,
+          filters.value.date
+        );
+
+        const newRow = {
+          ...data,
+          working_day: workingDays,
+          date: filters.value.date, // Ensure date is set from filters
+        };
+
+        newRows.value.push(newRow);
+
+        const existingStyle = styles.value.find(
+          (s) =>
+            s.style_no === data.style_no &&
+            s.buyer_short_name === data.buyer_short_name
+        );
+
+        if (!existingStyle && style) {
+          styles.value.push(style);
+        }
+      }
+
+      toast.success(`${importedData.length} data berhasil diimpor`);
+    };
+
+    reader.readAsArrayBuffer(file);
+  } catch (error) {
+    toast.error("Terjadi kesalahan saat mengimpor data: " + error.message);
+  } finally {
+    event.target.value = "";
+  }
+};
+
+// Add logging to handleBuyerChange
+const handleBuyerChange = async (row) => {
+  row.style_no = "";
+
+  const buyerStyles = getStylesByBuyer(row.buyer_short_name);
+
+  if (buyerStyles.length === 0) {
+    try {
+      const response = await styleService.getAllStyles(
+        1,
+        1000,
+        row.buyer_short_name
+      );
+      if (response.success) {
+        response.data.styles.forEach((style) => {
+          const exists = styles.value.some(
+            (s) =>
+              s.style_no === style.style_no &&
+              s.buyer_short_name === style.buyer_short_name
+          );
+
+          if (!exists) {
+            styles.value.push(style);
+          }
+        });
+      }
+    } catch (error) {
+      toast.error("Gagal mengambil data style untuk buyer ini");
+    }
   }
 };
 
@@ -1889,11 +2212,6 @@ onMounted(() => {
   // Remove initial fetchSchedules call
 });
 
-const handleBuyerChange = (row) => {
-  // Reset style when buyer changes
-  row.style_no = "";
-};
-
 const handleNewRowTypeChange = (row) => {
   if (row.type === "component") {
     row.line = "AREA";
@@ -1901,6 +2219,16 @@ const handleNewRowTypeChange = (row) => {
     row.line = ""; // Reset line when switching to assembly
   }
 };
+
+// Add watch for styles changes
+watch(styles, () => {}, { deep: true });
+
+// Add watch for newRows changes
+watch(
+  () => newRows.value,
+  () => {},
+  { deep: true }
+);
 </script>
 
 <style scoped></style>
