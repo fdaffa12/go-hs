@@ -1281,7 +1281,7 @@ const toggleRowSelection = (id) => {
 
 const exportToExcel = () => {
   if (!processes.value.length) {
-    toast.error("No data to export");
+    toast.error("Tidak ada data untuk diekspor");
     return;
   }
 
@@ -1291,6 +1291,8 @@ const exportToExcel = () => {
 
   // Add header row
   const header = [
+    "BUYER_SHORT_NAME",
+    "STYLE_NO",
     "NO_PROCESS",
     "CATEGORY",
     "SUB_CATEGORY",
@@ -1305,6 +1307,8 @@ const exportToExcel = () => {
   // Add data rows
   processes.value.forEach((process) => {
     const row = [
+      process.buyer_short_name,
+      process.style_no,
       process.no_process,
       process.category,
       process.sub_category,
@@ -1319,22 +1323,41 @@ const exportToExcel = () => {
 
   // Create worksheet and append to workbook
   const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+  // Set column widths
+  const colWidths = [
+    { wch: 15 }, // BUYER_SHORT_NAME
+    { wch: 15 }, // STYLE_NO
+    { wch: 10 }, // NO_PROCESS
+    { wch: 15 }, // CATEGORY
+    { wch: 15 }, // SUB_CATEGORY
+    { wch: 12 }, // SMV_PROC_GSD
+    { wch: 12 }, // SMV_PROC_EST
+    { wch: 30 }, // PROCESS_NAME_ENG
+    { wch: 30 }, // PROCESS_NAME_IND
+    { wch: 12 }, // MACHINE_CODE
+  ];
+  ws["!cols"] = colWidths;
+
+  // Add the worksheet to the workbook
   XLSX.utils.book_append_sheet(wb, ws, "Sew Num Process");
 
-  // Save file
-  XLSX.writeFile(wb, `SewNumProcess_${filters.value.style}.xlsx`);
-  toast.success("Data exported to Excel");
+  // Get buyer name for file name
+  const buyerName =
+    buyers.value.find((b) => b.short_name === filters.value.buyer)?.long_name ||
+    filters.value.buyer;
+
+  // Save file with buyer and style in filename
+  const fileName = `SewNumProcess_${buyerName}_${filters.value.style}_${
+    new Date().toISOString().split("T")[0]
+  }.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  toast.success("Data berhasil diekspor ke Excel");
 };
 
 const handleImport = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
-
-  if (!filters.value.buyer || !filters.value.style) {
-    toast.error("Please select buyer and style first");
-    event.target.value = "";
-    return;
-  }
 
   try {
     const reader = new FileReader();
@@ -1344,38 +1367,118 @@ const handleImport = async (event) => {
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
+      // Validate header row
+      const expectedHeaders = [
+        "BUYER_SHORT_NAME",
+        "STYLE_NO",
+        "NO_PROCESS",
+        "CATEGORY",
+        "SUB_CATEGORY",
+        "SMV_PROC_GSD",
+        "SMV_PROC_EST",
+        "PROCESS_NAME_ENG",
+        "PROCESS_NAME_IND",
+        "MACHINE_CODE",
+      ];
+
+      const headers = jsonData[0];
+      const missingHeaders = expectedHeaders.filter(
+        (header) => !headers.includes(header)
+      );
+
+      if (missingHeaders.length > 0) {
+        toast.error(
+          `Format file tidak valid. Kolom yang tidak sesuai: ${missingHeaders.join(
+            ", "
+          )}`
+        );
+        event.target.value = "";
+        return;
+      }
+
       const importedData = [];
       const invalidRows = [];
+      const validCategories = ["SUPPORT PART", "ASSEMBLY PART"];
 
       // Skip header row and process each data row
       for (let i = 1; i < jsonData.length; i++) {
         const row = jsonData[i];
-        const importData = {
-          buyer_short_name: filters.value.buyer,
-          style_no: filters.value.style,
-          no_process: row[0],
-          category: row[1],
-          sub_category: row[2],
-          smv_proc_gsd: row[3],
-          smv_proc_est: row[4],
-          process_name_eng: row[5],
-          process_name_ind: row[6],
-          machine_code: row[7],
-        };
+        const rowNum = i + 1;
+        const errors = [];
 
-        // Basic validation
-        if (
-          !importData.no_process ||
-          !importData.category ||
-          !importData.sub_category ||
-          !importData.machine_code
-        ) {
+        // Check if style exists
+        const styleExists = styles.value.some(
+          (s) => s.style_no === row[headers.indexOf("STYLE_NO")]
+        );
+        if (!styleExists) {
+          errors.push("Style tidak ditemukan");
+        }
+
+        // Check if buyer exists
+        const buyerExists = buyers.value.some(
+          (b) => b.short_name === row[headers.indexOf("BUYER_SHORT_NAME")]
+        );
+        if (!buyerExists) {
+          errors.push("Buyer tidak ditemukan");
+        }
+
+        // Validate category
+        const category = row[headers.indexOf("CATEGORY")];
+        if (!validCategories.includes(category)) {
+          errors.push(`Category harus ${validCategories.join(" atau ")}`);
+        }
+
+        // Validate required fields
+        const requiredFields = [
+          { name: "NO_PROCESS", type: "number" },
+          { name: "CATEGORY", type: "string" },
+          { name: "SUB_CATEGORY", type: "string" },
+          { name: "MACHINE_CODE", type: "string", maxLength: 2 },
+        ];
+
+        requiredFields.forEach((field) => {
+          const value = row[headers.indexOf(field.name)];
+          if (value === undefined || value === "") {
+            errors.push(`${field.name} wajib diisi`);
+          } else if (field.type === "number" && isNaN(value)) {
+            errors.push(`${field.name} harus berupa angka`);
+          } else if (
+            field.maxLength &&
+            value.toString().length > field.maxLength
+          ) {
+            errors.push(`${field.name} maksimal ${field.maxLength} karakter`);
+          }
+        });
+
+        // Validate numeric fields
+        const numericFields = ["SMV_PROC_GSD", "SMV_PROC_EST"];
+        numericFields.forEach((field) => {
+          const value = row[headers.indexOf(field)];
+          if (value !== undefined && value !== "" && isNaN(value)) {
+            errors.push(`${field} harus berupa angka`);
+          }
+        });
+
+        if (errors.length > 0) {
           invalidRows.push({
-            row: i + 1,
-            reason: "Required fields missing",
+            row: rowNum,
+            errors: errors,
           });
           continue;
         }
+
+        const importData = {
+          buyer_short_name: row[headers.indexOf("BUYER_SHORT_NAME")],
+          style_no: row[headers.indexOf("STYLE_NO")],
+          no_process: parseInt(row[headers.indexOf("NO_PROCESS")]),
+          category: row[headers.indexOf("CATEGORY")],
+          sub_category: row[headers.indexOf("SUB_CATEGORY")],
+          smv_proc_gsd: row[headers.indexOf("SMV_PROC_GSD")] || null,
+          smv_proc_est: row[headers.indexOf("SMV_PROC_EST")] || 0,
+          process_name_eng: row[headers.indexOf("PROCESS_NAME_ENG")] || null,
+          process_name_ind: row[headers.indexOf("PROCESS_NAME_IND")] || null,
+          machine_code: row[headers.indexOf("MACHINE_CODE")],
+        };
 
         importedData.push(importData);
       }
@@ -1383,9 +1486,16 @@ const handleImport = async (event) => {
       // Show validation errors if any
       if (invalidRows.length > 0) {
         const errorMessages = invalidRows
-          .map((error) => `Row ${error.row}: ${error.reason}`)
+          .map((error) => `Baris ${error.row}: ${error.errors.join(", ")}`)
           .join("\n");
-        toast.error(`Some data is invalid:\n${errorMessages}`);
+        toast.error(`Beberapa data tidak valid:\n${errorMessages}`);
+        event.target.value = "";
+        return;
+      }
+
+      if (importedData.length === 0) {
+        toast.error("Tidak ada data valid untuk diimpor");
+        event.target.value = "";
         return;
       }
 
@@ -1393,21 +1503,19 @@ const handleImport = async (event) => {
       try {
         const response = await sewNumProcessService.bulkSave(importedData);
         if (response.success) {
-          toast.success(
-            `${importedData.length} processes imported successfully`
-          );
+          toast.success(`${importedData.length} proses berhasil diimpor`);
           handleStyleChange();
         } else {
-          toast.error(response.message || "Failed to import processes");
+          toast.error(response.message || "Gagal mengimpor proses");
         }
       } catch (error) {
-        toast.error("An error occurred while importing processes");
+        toast.error("Terjadi kesalahan saat mengimpor proses");
       }
     };
 
     reader.readAsArrayBuffer(file);
   } catch (error) {
-    toast.error("Error importing data: " + error.message);
+    toast.error("Error mengimpor data: " + error.message);
   } finally {
     event.target.value = "";
   }
