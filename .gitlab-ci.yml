@@ -1,0 +1,37 @@
+stages:
+  - backend
+  - frontend
+
+# ----------------------------
+# Backend CI (Go)
+# ----------------------------
+backend:
+  stage: backend
+  image: golang:1.24.4
+  before_script:
+    - cd backend
+  script:
+    - go mod download
+    - go build -v ./...
+  artifacts:
+    paths:
+      - backend
+  only:
+    - main
+
+# ----------------------------
+# Frontend CI (Node.js)
+# ----------------------------
+frontend:
+  stage: frontend
+  image: node:20
+  before_script:
+    - cd frontend
+  script:
+    - npm ci --prefer-offline --no-audit
+    - npm run build || echo "No build script"
+  artifacts:
+    paths:
+      - frontend/dist
+  only:
+    - main
